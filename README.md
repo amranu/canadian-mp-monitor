@@ -2,23 +2,6 @@
 
 A high-performance web application for tracking Canadian Members of Parliament and their voting records. Built with React frontend and Flask backend, featuring comprehensive caching for instant data access.
 
-## ⚡ Key Features
-
-- **Instant Vote Loading**: Revolutionary caching system loads vote details instantly
-- **Complete MP Database**: 343+ current MPs with full biographical information
-- **Historical Data**: Includes 336+ MPs from previous parliamentary sessions
-- **Real-time Updates**: Automatic detection and caching of new votes every 30 minutes
-- **Advanced Search**: Find MPs by name, party, or riding
-- **Detailed Vote Analysis**: Complete voting records with party statistics and visual breakdowns
-- **Bill Tracking**: Prominent display of bill information and legislative context
-
-## 🚀 Performance Highlights
-
-- **Vote Details**: ~3 seconds → **Instant loading** (99% improvement)
-- **Unknown MPs**: 111 → **0** (100% resolved with historical data)
-- **Cache Coverage**: 4,485+ votes with complete ballot information
-- **Update Efficiency**: Every 30 minutes for new content vs. 3-hour full rebuilds
-
 ## 📊 Architecture
 
 ### Frontend (React)
@@ -51,33 +34,49 @@ A high-performance web application for tracking Canadian Members of Parliament a
 - Python 3.8+
 - Node.js 16+
 - npm or yarn
+- cron (for automated updates)
 
-### Backend Setup
+### Quick Setup
 ```bash
+# Clone the repository
+git clone https://github.com/amranu/canadian-mp-monitor.git
+cd canadian-mp-monitor
+
+# Backend setup
 cd backend
 python3 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
-```
 
-### Frontend Setup
-```bash
-cd frontend
+# Frontend setup
+cd ../frontend
 npm install
+cd ../backend
 ```
 
-### Initial Cache Population
+### Initial Data Setup
 ```bash
-cd backend
-# Pre-cache all vote details (one-time setup)
+# Step 1: Cache all parliamentary votes (takes ~30 minutes)
 python3 cache_all_votes.py
 
-# Fetch historical MP data (one-time setup)
+# Step 2: Fetch historical MP data (takes ~5 minutes)
 python3 fetch_historical_mps.py
 
-# Set up automated updates
+# Step 3: Generate MP voting records (takes ~15 seconds)
+python3 cache_mp_voting_records.py
+
+# Step 4: Set up automated updates (requires cron)
 chmod +x setup_cron.sh
 ./setup_cron.sh
+```
+
+### Alternative: Quick Start with Incremental Data
+```bash
+# For faster initial setup, start with recent data only
+python3 incremental_update.py
+
+# Then run full cache population in background
+nohup python3 cache_all_votes.py > cache_setup.log 2>&1 &
 ```
 
 ## 🚀 Running the Application
