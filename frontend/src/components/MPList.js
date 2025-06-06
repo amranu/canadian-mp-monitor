@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { parliamentApi } from '../services/parliamentApi';
 
-function MPList({ onSelectMP }) {
+function MPList() {
+  const navigate = useNavigate();
   const [allMPs, setAllMPs] = useState([]);
   const [filteredMPs, setFilteredMPs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -115,7 +117,10 @@ function MPList({ onSelectMP }) {
         {filteredMPs.map((mp) => (
           <div 
             key={mp.url} 
-            onClick={() => onSelectMP(mp)}
+            onClick={() => {
+              const mpSlug = mp.url.replace('/politicians/', '').replace('/', '');
+              navigate(`/mp/${mpSlug}`);
+            }}
             style={{
               border: '1px solid #ddd',
               borderRadius: '8px',

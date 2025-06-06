@@ -102,9 +102,9 @@ export const parliamentApi = {
     const slug = mpUrl.replace('/politicians/', '').replace('/', '');
     const cacheKey = `mp-votes-${slug}-${limit}-${offset}`;
     
-    // Check cache first
+    // Check cache first, but only if we're not looking for loading responses
     const cachedData = cache.get(cacheKey);
-    if (cachedData) {
+    if (cachedData && !cachedData.loading) {
       return cachedData;
     }
     
@@ -116,8 +116,10 @@ export const parliamentApi = {
     
     const data = await response.json();
     
-    // Cache the response
-    cache.set(cacheKey, data);
+    // Only cache if we have actual vote data (not loading state)
+    if (!data.loading && data.objects && data.objects.length > 0) {
+      cache.set(cacheKey, data);
+    }
     
     return data;
   },
@@ -166,6 +168,10 @@ export const parliamentApi = {
   // Cache management methods
   clearCache() {
     cache.clear();
+  },
+
+  clearCacheKey(key) {
+    cache.clear(key);
   },
 
   getCacheStatus() {

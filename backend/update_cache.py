@@ -19,7 +19,7 @@ HEADERS = {
     'API-Version': 'v1'
 }
 
-CACHE_DURATION = 3600  # 1 hour in seconds
+CACHE_DURATION = 10800  # 3 hours in seconds
 CACHE_DIR = 'cache'
 POLITICIANS_CACHE_FILE = os.path.join(CACHE_DIR, 'politicians.json')
 VOTES_CACHE_FILE = os.path.join(CACHE_DIR, 'votes.json')
@@ -115,7 +115,7 @@ def fetch_vote_details(vote_url, ballot):
         log(f"Error fetching vote details for {vote_url}: {e}")
         return None
 
-def get_mp_voting_records(mp_slug, limit=20):
+def get_mp_voting_records(mp_slug, limit=100):
     """Get voting records for a specific MP"""
     try:
         log(f"Loading voting records for {mp_slug}...")
@@ -218,15 +218,13 @@ def update_mp_votes_cache(politicians, max_mps=50):
     
     # Cache votes for first N MPs (most likely to be viewed)
     popular_mps = politicians[:max_mps]
-    
-    log(f"Caching votes for {len(popular_mps)} MPs")
     successful_updates = 0
     
     for i, mp in enumerate(popular_mps):
         mp_slug = mp['url'].replace('/politicians/', '').replace('/', '')
         
         try:
-            votes = get_mp_voting_records(mp_slug, 20)
+            votes = get_mp_voting_records(mp_slug, 100)
             
             if votes:
                 cache_data = {

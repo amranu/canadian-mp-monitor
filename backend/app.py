@@ -19,21 +19,27 @@ HEADERS = {
 }
 
 # Cache configuration
-CACHE_DURATION = 3600  # 1 hour in seconds
+CACHE_DURATION = 10800  # 3 hours in seconds
 CACHE_DIR = 'cache'
 POLITICIANS_CACHE_FILE = os.path.join(CACHE_DIR, 'politicians.json')
 VOTES_CACHE_FILE = os.path.join(CACHE_DIR, 'votes.json')
 MP_VOTES_CACHE_DIR = os.path.join(CACHE_DIR, 'mp_votes')
+HISTORICAL_MPS_FILE = os.path.join(CACHE_DIR, 'historical_mps.json')
+VOTE_DETAILS_CACHE_DIR = os.path.join(CACHE_DIR, 'vote_details')
+VOTE_CACHE_INDEX_FILE = os.path.join(CACHE_DIR, 'vote_cache_index.json')
 
 # Ensure cache directories exist
 os.makedirs(CACHE_DIR, exist_ok=True)
 os.makedirs(MP_VOTES_CACHE_DIR, exist_ok=True)
+os.makedirs(VOTE_DETAILS_CACHE_DIR, exist_ok=True)
 
 # In-memory cache for fast access (loaded from files)
 cache = {
     'politicians': {'data': None, 'expires': 0, 'loading': False},
     'votes': {'data': None, 'expires': 0, 'loading': False},
-    'mp_votes': {}  # {mp_slug: {'data': [...], 'expires': timestamp, 'loading': False}}
+    'mp_votes': {},  # {mp_slug: {'data': [...], 'expires': timestamp, 'loading': False}}
+    'mp_details': {},  # Cache for individual MP details fetched from API
+    'historical_mps': {'data': {}, 'loaded': False}  # Historical MP data from previous sessions
 }
 
 @app.route('/')
@@ -45,6 +51,7 @@ def hello():
     votes_count = len(cache['votes']['data']) if cache['votes']['data'] else 0
     mp_votes_count = len([k for k, v in cache['mp_votes'].items() if v.get('data')])
     mp_votes_loading = len([k for k, v in cache['mp_votes'].items() if v.get('loading', False)])
+    historical_mps_count = len(cache['historical_mps']['data'])
     
     politicians_expires = datetime.fromtimestamp(cache['politicians']['expires']).isoformat() if cache['politicians']['expires'] > 0 else 'N/A'
     votes_expires = datetime.fromtimestamp(cache['votes']['expires']).isoformat() if cache['votes']['expires'] > 0 else 'N/A'
@@ -66,6 +73,10 @@ def hello():
                 'cached_mps': mp_votes_count,
                 'loading_mps': mp_votes_loading,
                 'total_cached_records': sum(len(v.get('data', [])) for v in cache['mp_votes'].values() if v.get('data'))
+            },
+            'historical_mps': {
+                'loaded': cache['historical_mps']['loaded'],
+                'count': historical_mps_count
             }
         },
         'cache_duration_hours': CACHE_DURATION / 3600
@@ -92,6 +103,138 @@ def save_cache_to_file(data, cache_file):
 
 def is_cache_valid(cache_key):
     return cache[cache_key]['data'] is not None and time.time() < cache[cache_key]['expires']
+
+def get_vote_id_from_path(vote_path):
+    """Convert vote path to cache-safe ID"""
+    return vote_path.replace('/', '_')
+
+def get_cached_vote_details_filename(vote_path):
+    """Get filename for cached vote details"""
+    vote_id = get_vote_id_from_path(vote_path)
+    return os.path.join(VOTE_DETAILS_CACHE_DIR, f'{vote_id}.json')
+
+def load_cached_vote_details(vote_path):
+    """Load vote details from cache file"""
+    try:
+        filename = get_cached_vote_details_filename(vote_path)
+        if os.path.exists(filename):
+            with open(filename, 'r') as f:
+                data = json.load(f)
+            print(f"[{datetime.now()}] Loaded cached vote details for {vote_path}")
+            return data
+    except Exception as e:
+        print(f"[{datetime.now()}] Error loading cached vote details for {vote_path}: {e}")
+    return None
+
+def enrich_cached_vote_details(cached_data):
+    """Enrich cached vote details with current MP data and party statistics"""
+    if not cached_data or 'ballots' not in cached_data:
+        return cached_data
+    
+    # Get politician maps
+    politicians = cache['politicians'].get('data', [])
+    politician_map = {mp['url']: mp for mp in politicians} if politicians else {}
+    historical_mps = cache['historical_mps'].get('data', {})
+    
+    # Enrich ballots with MP details
+    enriched_ballots = []
+    historical_mp_count = 0
+    current_mp_count = 0
+    api_fetched_count = 0
+    
+    for ballot in cached_data['ballots']:
+        mp_data = politician_map.get(ballot['politician_url'], {})
+        
+        # Check historical MPs if not found in current
+        if not mp_data and ballot['politician_url'] in historical_mps:
+            mp_data = historical_mps[ballot['politician_url']]
+            historical_mp_count += 1
+        elif mp_data:
+            current_mp_count += 1
+        else:
+            # Fetch from API as last resort (cached)
+            mp_slug = ballot['politician_url'].replace('/politicians/', '').replace('/', '')
+            mp_data = fetch_mp_details_from_api(mp_slug)
+            api_fetched_count += 1
+        
+        # Extract party and riding info
+        if mp_data and mp_data.get('memberships'):
+            latest_membership = mp_data['memberships'][-1]
+            party_name = latest_membership.get('party', {}).get('short_name', {}).get('en', 'Unknown')
+            riding_name = latest_membership.get('riding', {}).get('name', {}).get('en', 'Unknown')
+            province = latest_membership.get('riding', {}).get('province', 'Unknown')
+        else:
+            party_name = mp_data.get('current_party', {}).get('short_name', {}).get('en', 'Unknown')
+            riding_name = mp_data.get('current_riding', {}).get('name', {}).get('en', 'Unknown')
+            province = mp_data.get('current_riding', {}).get('province', 'Unknown')
+        
+        enriched_ballot = {
+            **ballot,
+            'mp_name': mp_data.get('name', 'Unknown'),
+            'mp_party': party_name,
+            'mp_riding': riding_name,
+            'mp_province': province,
+            'mp_image': mp_data.get('image', None)
+        }
+        enriched_ballots.append(enriched_ballot)
+    
+    # Calculate party statistics
+    party_stats = {}
+    for ballot in enriched_ballots:
+        party = ballot['mp_party']
+        if party not in party_stats:
+            party_stats[party] = {
+                'total': 0,
+                'yes': 0,
+                'no': 0,
+                'paired': 0,
+                'absent': 0,
+                'other': 0
+            }
+        
+        party_stats[party]['total'] += 1
+        vote = ballot['ballot'].lower()
+        if vote == 'yes':
+            party_stats[party]['yes'] += 1
+        elif vote == 'no':
+            party_stats[party]['no'] += 1
+        elif vote == 'paired':
+            party_stats[party]['paired'] += 1
+        elif vote == 'absent':
+            party_stats[party]['absent'] += 1
+        else:
+            party_stats[party]['other'] += 1
+    
+    # Return enriched data
+    return {
+        'vote': cached_data.get('vote', {}),
+        'ballots': enriched_ballots,
+        'party_stats': party_stats,
+        'total_ballots': len(enriched_ballots),
+        'mp_sources': {
+            'current_mps': current_mp_count,
+            'historical_mps': historical_mp_count,
+            'api_fetched': api_fetched_count,
+            'total': len(enriched_ballots)
+        },
+        'from_cache': True
+    }
+
+def load_historical_mps():
+    """Load historical MP data from cache file"""
+    try:
+        if os.path.exists(HISTORICAL_MPS_FILE):
+            with open(HISTORICAL_MPS_FILE, 'r') as f:
+                historical_data = json.load(f)
+            cache['historical_mps']['data'] = historical_data.get('data', {})
+            cache['historical_mps']['loaded'] = True
+            print(f"[{datetime.now()}] Loaded {len(cache['historical_mps']['data'])} historical MPs")
+        else:
+            print(f"[{datetime.now()}] No historical MPs file found, will fetch unknown MPs from API")
+    except Exception as e:
+        print(f"[{datetime.now()}] Error loading historical MPs: {e}")
+        cache['historical_mps']['data'] = {}
+        cache['historical_mps']['loaded'] = True
 
 def load_persistent_cache():
     """Load all cache data from files on startup"""
@@ -130,6 +273,9 @@ def load_persistent_cache():
                         'loading': False
                     }
         print(f"[{datetime.now()}] Loaded {len(cache['mp_votes'])} MP vote caches")
+    
+    # Load historical MPs
+    load_historical_mps()
 
 # Load cache on startup
 load_persistent_cache()
@@ -266,6 +412,7 @@ def get_vote_ballots():
 @app.route('/api/politician/<path:politician_path>/votes')
 def get_politician_votes(politician_path):
     limit = int(request.args.get('limit', 20))
+    offset = int(request.args.get('offset', 0))
     
     try:
         # Check if we have cached data for this MP
@@ -273,18 +420,39 @@ def get_politician_votes(politician_path):
             cache['mp_votes'][politician_path]['data'] is not None and 
             time.time() < cache['mp_votes'][politician_path]['expires']):
             
-            cached_votes = cache['mp_votes'][politician_path]['data'][:limit]
-            print(f"[{datetime.now()}] Serving cached votes for {politician_path}")
+            all_cached_votes = cache['mp_votes'][politician_path]['data']
+            
+            # If requesting data beyond cache, fetch from API
+            if offset >= len(all_cached_votes):
+                print(f"[{datetime.now()}] Request beyond cache ({offset} >= {len(all_cached_votes)}), fetching from API")
+                api_votes = get_mp_voting_records_from_api(politician_path, limit, offset)
+                return jsonify({
+                    'objects': api_votes,
+                    'pagination': {
+                        'offset': offset,
+                        'limit': limit,
+                        'next_url': None,
+                        'previous_url': None
+                    },
+                    'cached': False,
+                    'total_cached': len(all_cached_votes),
+                    'from_api': True
+                })
+            
+            # Serve from cache if available
+            cached_votes = all_cached_votes[offset:offset + limit]
+            print(f"[{datetime.now()}] Serving cached votes for {politician_path} (offset: {offset}, limit: {limit})")
             
             return jsonify({
                 'objects': cached_votes,
                 'pagination': {
-                    'offset': 0,
+                    'offset': offset,
                     'limit': limit,
                     'next_url': None,
                     'previous_url': None
                 },
-                'cached': True
+                'cached': True,
+                'total_cached': len(all_cached_votes)
             })
         
         # If not cached or loading, check if currently loading
@@ -319,6 +487,17 @@ def get_politician_votes(politician_path):
 @app.route('/api/votes/<path:vote_path>/details')
 def get_vote_details(vote_path):
     try:
+        # First, try to load from cache
+        cached_data = load_cached_vote_details(vote_path)
+        if cached_data:
+            enriched_data = enrich_cached_vote_details(cached_data)
+            if enriched_data:
+                print(f"[{datetime.now()}] Serving vote details for {vote_path} from cache")
+                return jsonify(enriched_data)
+        
+        # Fallback to API if not cached (for new votes)
+        print(f"[{datetime.now()}] Vote {vote_path} not cached, fetching from API")
+        
         # Get the vote details
         vote_response = requests.get(
             f'{PARLIAMENT_API_BASE}/votes/{vote_path}/',
@@ -339,57 +518,27 @@ def get_vote_details(vote_path):
         ballots_response.raise_for_status()
         ballots_data = ballots_response.json()
         
-        # Get all politicians to enrich ballot data
-        politicians = cache['politicians'].get('data', []) if 'politicians' in cache else []
-        politician_map = {mp['url']: mp for mp in politicians} if politicians else {}
-        
-        # Enrich ballots with MP details
-        enriched_ballots = []
-        for ballot in ballots_data['objects']:
-            mp_data = politician_map.get(ballot['politician_url'], {})
-            enriched_ballot = {
-                **ballot,
-                'mp_name': mp_data.get('name', 'Unknown'),
-                'mp_party': mp_data.get('current_party', {}).get('short_name', {}).get('en', 'Unknown'),
-                'mp_riding': mp_data.get('current_riding', {}).get('name', {}).get('en', 'Unknown'),
-                'mp_province': mp_data.get('current_riding', {}).get('province', 'Unknown'),
-                'mp_image': mp_data.get('image', None)
-            }
-            enriched_ballots.append(enriched_ballot)
-        
-        # Calculate party statistics
-        party_stats = {}
-        for ballot in enriched_ballots:
-            party = ballot['mp_party']
-            if party not in party_stats:
-                party_stats[party] = {
-                    'total': 0,
-                    'yes': 0,
-                    'no': 0,
-                    'paired': 0,
-                    'absent': 0,
-                    'other': 0
-                }
-            
-            party_stats[party]['total'] += 1
-            vote = ballot['ballot'].lower()
-            if vote == 'yes':
-                party_stats[party]['yes'] += 1
-            elif vote == 'no':
-                party_stats[party]['no'] += 1
-            elif vote == 'paired':
-                party_stats[party]['paired'] += 1
-            elif vote == 'absent':
-                party_stats[party]['absent'] += 1
-            else:
-                party_stats[party]['other'] += 1
-        
-        return jsonify({
+        # Create temporary cached data structure
+        temp_cached_data = {
             'vote': vote_data,
-            'ballots': enriched_ballots,
-            'party_stats': party_stats,
-            'total_ballots': len(enriched_ballots)
-        })
+            'ballots': ballots_data.get('objects', []),
+            'cached_at': datetime.now().isoformat()
+        }
+        
+        # Enrich and return
+        enriched_data = enrich_cached_vote_details(temp_cached_data)
+        enriched_data['from_cache'] = False  # Mark as API fetch
+        
+        # Save to cache for future use
+        try:
+            filename = get_cached_vote_details_filename(vote_path)
+            with open(filename, 'w') as f:
+                json.dump(temp_cached_data, f, indent=2)
+            print(f"[{datetime.now()}] Cached new vote details for {vote_path}")
+        except Exception as e:
+            print(f"[{datetime.now()}] Error saving vote cache for {vote_path}: {e}")
+        
+        return jsonify(enriched_data)
         
     except requests.exceptions.RequestException as e:
         return jsonify({'error': str(e)}), 500
@@ -442,7 +591,100 @@ def update_votes_cache():
         print(f"[{datetime.now()}] Error updating votes cache: {e}")
         return False
 
-def get_mp_voting_records(mp_slug, limit=20):
+def fetch_mp_details_from_api(mp_slug):
+    """Fetch MP details from Parliament API for MPs not in current cache"""
+    # Check if already cached
+    if mp_slug in cache['mp_details']:
+        cached_data = cache['mp_details'][mp_slug]
+        if time.time() < cached_data['expires']:
+            return cached_data['data']
+    
+    try:
+        print(f"[{datetime.now()}] Fetching MP details from API for {mp_slug}")
+        response = requests.get(
+            f'{PARLIAMENT_API_BASE}/politicians/{mp_slug}/',
+            headers=HEADERS,
+            timeout=10
+        )
+        response.raise_for_status()
+        mp_data = response.json()
+        
+        # Cache for 1 hour
+        cache['mp_details'][mp_slug] = {
+            'data': mp_data,
+            'expires': time.time() + 3600
+        }
+        
+        print(f"[{datetime.now()}] Successfully fetched and cached details for {mp_data.get('name', mp_slug)}")
+        return mp_data
+    except Exception as e:
+        print(f"[{datetime.now()}] Error fetching MP details for {mp_slug}: {e}")
+        # Cache empty result for 10 minutes to avoid repeated failures
+        cache['mp_details'][mp_slug] = {
+            'data': {},
+            'expires': time.time() + 600
+        }
+        return {}
+
+def get_mp_voting_records_from_api(mp_slug, limit=20, offset=0):
+    """Get voting records for a specific MP directly from Parliament API (for pagination beyond cache)"""
+    try:
+        print(f"[{datetime.now()}] Fetching votes from API for {mp_slug} (limit: {limit}, offset: {offset})")
+        
+        # Get ballots for this politician directly from Parliament API
+        response = requests.get(
+            f'{PARLIAMENT_API_BASE}/votes/ballots/',
+            params={
+                'politician': f'/politicians/{mp_slug}/',
+                'limit': limit,
+                'offset': offset
+            },
+            headers=HEADERS,
+            timeout=30
+        )
+        response.raise_for_status()
+        ballots_data = response.json()
+        
+        # For each ballot, get the vote details (batch process)
+        votes_with_ballots = []
+        vote_urls = [ballot['vote_url'] for ballot in ballots_data['objects']]
+        
+        # Process votes in smaller batches to avoid overwhelming the API
+        batch_size = 5
+        for i in range(0, len(vote_urls), batch_size):
+            batch_urls = vote_urls[i:i + batch_size]
+            
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                future_to_ballot = {}
+                
+                for j, vote_url in enumerate(batch_urls):
+                    ballot = ballots_data['objects'][i + j]
+                    future = executor.submit(fetch_vote_details, vote_url, ballot['ballot'])
+                    future_to_ballot[future] = ballot
+                
+                for future in as_completed(future_to_ballot):
+                    try:
+                        vote_data = future.result(timeout=10)
+                        if vote_data:
+                            votes_with_ballots.append(vote_data)
+                    except Exception as e:
+                        print(f"Error processing vote: {e}")
+                        continue
+            
+            # Small delay between batches
+            time.sleep(0.1)
+        
+        # Sort by date descending
+        votes_with_ballots.sort(key=lambda x: x.get('date', ''), reverse=True)
+        
+        print(f"[{datetime.now()}] Fetched {len(votes_with_ballots)} votes from API for {mp_slug}")
+        return votes_with_ballots
+        
+    except Exception as e:
+        print(f"[{datetime.now()}] Error getting MP voting records from API for {mp_slug}: {e}")
+        return []
+
+def get_mp_voting_records(mp_slug, limit=100):
     """Get voting records for a specific MP"""
     try:
         # Get all ballots for this politician
@@ -522,7 +764,7 @@ def cache_mp_votes_background(mp_slug):
         cache['mp_votes'][mp_slug] = {'loading': True, 'data': None, 'expires': 0}
         
         print(f"[{datetime.now()}] Background caching votes for {mp_slug}")
-        votes = get_mp_voting_records(mp_slug, 20)
+        votes = get_mp_voting_records(mp_slug, 100)
         
         expires_time = time.time() + CACHE_DURATION
         cache['mp_votes'][mp_slug] = {
@@ -613,6 +855,22 @@ def get_votes():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/reload-historical-mps', methods=['POST'])
+def reload_historical_mps():
+    """Reload historical MP data from cache file"""
+    try:
+        load_historical_mps()
+        return jsonify({
+            'success': True,
+            'message': f'Reloaded {len(cache["historical_mps"]["data"])} historical MPs',
+            'count': len(cache['historical_mps']['data'])
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

@@ -1,77 +1,176 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { parliamentApi } from '../services/parliamentApi';
-import VoteDetails from './VoteDetails';
 
-function MPDetail({ mp, onBack }) {
+function MPDetail() {
+  const { mpSlug } = useParams();
+  const navigate = useNavigate();
+  const [mp, setMp] = useState(null);
   const [mpDetails, setMpDetails] = useState(null);
   const [votes, setVotes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedVote, setSelectedVote] = useState(null);
+  const [votesLoading, setVotesLoading] = useState(false);
+  const [hasSpecificVotes, setHasSpecificVotes] = useState(false);
+  const [loadingMoreVotes, setLoadingMoreVotes] = useState(false);
+  const [hasMoreVotes, setHasMoreVotes] = useState(true);
+  const [votesOffset, setVotesOffset] = useState(0);
+  const [loadingFromApi, setLoadingFromApi] = useState(false);
 
   useEffect(() => {
-    loadMPDetails();
-    loadRecentVotes();
-  }, [mp]);
+    loadMP();
+  }, [mpSlug]);
 
-  const loadMPDetails = async () => {
+  const loadMP = async () => {
     try {
-      const data = await parliamentApi.getMP(mp.url);
+      const mpUrl = `/politicians/${mpSlug}/`;
+      const data = await parliamentApi.getMP(mpUrl);
+      console.log('MP data loaded:', data); // Debug log
+      setMp(data);
       setMpDetails(data);
+      
+      // Clear any cached MP votes to ensure fresh data
+      const cacheKey = `mp-votes-${mpSlug}-20-0`;
+      parliamentApi.clearCacheKey(cacheKey);
+      
+      loadRecentVotes(mpUrl);
     } catch (error) {
-      console.error('Error loading MP details:', error);
+      console.error('Error loading MP:', error);
+      setLoading(false);
     }
   };
 
-  const loadRecentVotes = async (retryCount = 0) => {
+  const loadMoreVotes = async () => {
+    if (!mp || loadingMoreVotes || !hasMoreVotes) return;
+    
     try {
-      const data = await parliamentApi.getMPVotes(mp.url, 20);
+      setLoadingMoreVotes(true);
+      const mpUrl = `/politicians/${mpSlug}/`;
+      const newOffset = votesOffset + 20;
+      
+      const data = await parliamentApi.getMPVotes(mpUrl, 20, newOffset);
+      
+      if (data.objects && data.objects.length > 0) {
+        // Append new votes to existing ones
+        setVotes(prevVotes => [...prevVotes, ...data.objects]);
+        setVotesOffset(newOffset + data.objects.length);
+        
+        // Check if we should continue loading more votes
+        if (data.from_api) {
+          // When loading from API, only stop if we get fewer than requested
+          setLoadingFromApi(true);
+          if (data.objects.length < 20) {
+            setHasMoreVotes(false);
+            console.log('API returned fewer than 20 votes, no more available');
+          }
+        } else {
+          // When loading from cache, check cache limits
+          const totalVotesAfterUpdate = votes.length + data.objects.length;
+          if (data.total_cached && totalVotesAfterUpdate >= data.total_cached) {
+            // Don't stop here - let it try to fetch from API next time
+            console.log(`Reached cached limit: ${totalVotesAfterUpdate}/${data.total_cached}, will try API next`);
+          } else if (data.objects.length < 20) {
+            setHasMoreVotes(false);
+            console.log('Received fewer than 20 votes from cache, no more available');
+          }
+        }
+        
+        // Update hasSpecificVotes if we find MP ballot data
+        if (data.objects.some(vote => vote.mp_ballot)) {
+          setHasSpecificVotes(true);
+        }
+      } else {
+        setHasMoreVotes(false);
+        console.log('No votes returned, stopping pagination');
+      }
+    } catch (error) {
+      console.error('Error loading more votes:', error);
+    } finally {
+      setLoadingMoreVotes(false);
+    }
+  };
+
+  const loadRecentVotes = async (mpUrl, retryCount = 0) => {
+    try {
+      if (retryCount === 0) {
+        setVotesLoading(true);
+        setVotesOffset(0);
+        setHasMoreVotes(true);
+        // Start with general votes immediately for better UX
+        try {
+          const fallbackData = await parliamentApi.getVotes(20);
+          setVotes(fallbackData.objects);
+          setHasSpecificVotes(false);
+        } catch (fallbackError) {
+          console.error('Error loading fallback votes:', fallbackError);
+        }
+      }
+      
+      const data = await parliamentApi.getMPVotes(mpUrl, 20);
       
       // Check if votes are being loaded in background
-      if (data.loading && retryCount < 3) {
-        console.log(`Votes loading in background, retrying in 3 seconds... (attempt ${retryCount + 1}/3)`);
+      if (data.loading && retryCount < 20) {
+        const delay = retryCount < 5 ? 3000 : retryCount < 10 ? 5000 : 10000; // Gradual backoff
+        console.log(`MP votes loading in background, retrying in ${delay/1000} seconds... (attempt ${retryCount + 1}/20)`);
         setTimeout(() => {
-          loadRecentVotes(retryCount + 1);
-        }, 3000);
+          loadRecentVotes(mpUrl, retryCount + 1);
+        }, delay);
         return;
       }
       
-      if (data.objects && data.objects.length > 0) {
+      if (data.objects && data.objects.length > 0 && data.objects.some(vote => vote.mp_ballot)) {
+        // We have MP-specific voting data
+        console.log('Loaded MP-specific votes with ballot information');
         setVotes(data.objects);
-        if (data.cached) {
-          console.log('Serving cached MP votes');
+        setHasSpecificVotes(true);
+        setVotesLoading(false);
+        setVotesOffset(data.objects.length);
+        // Check if there are more votes to load based on total cached
+        if (data.total_cached && data.objects.length >= data.total_cached) {
+          setHasMoreVotes(false);
+        } else if (data.objects.length < 20) {
+          setHasMoreVotes(false);
         }
-      } else if (retryCount >= 3) {
-        // After 3 retries, fallback to general votes
-        console.log('Falling back to general parliamentary votes');
-        const fallbackData = await parliamentApi.getVotes(20);
-        setVotes(fallbackData.objects);
+      } else if (data.objects && data.objects.length > 0 && !data.loading) {
+        // We have votes but no MP ballot info - this might be the final state
+        console.log('Loaded votes without MP ballot information');
+        setVotes(data.objects);
+        setHasSpecificVotes(false);
+        setVotesLoading(false);
+        setVotesOffset(data.objects.length);
+        if (data.total_cached && data.objects.length >= data.total_cached) {
+          setHasMoreVotes(false);
+        } else if (data.objects.length < 20) {
+          setHasMoreVotes(false);
+        }
+      } else if (retryCount >= 20) {
+        // After 20 retries, stop trying but keep the general votes we loaded initially
+        console.log('Max retries reached, keeping general parliamentary votes');
+        setVotesLoading(false);
       }
     } catch (error) {
       console.error('Error loading MP votes:', error);
-      // Fallback to general votes if individual votes fail
-      try {
-        const fallbackData = await parliamentApi.getVotes(20);
-        setVotes(fallbackData.objects);
-      } catch (fallbackError) {
-        console.error('Error loading fallback votes:', fallbackError);
+      if (retryCount === 0) {
+        // Only fallback on first attempt, subsequent retries will use what we already have
+        try {
+          const fallbackData = await parliamentApi.getVotes(20);
+          setVotes(fallbackData.objects);
+          setHasSpecificVotes(false);
+        } catch (fallbackError) {
+          console.error('Error loading fallback votes:', fallbackError);
+        }
       }
     } finally {
-      if (retryCount === 0 || retryCount >= 3) {
+      if (retryCount === 0 || retryCount >= 20) {
         setLoading(false);
+        if (retryCount >= 20) {
+          setVotesLoading(false);
+        }
       }
     }
   };
 
-  if (selectedVote) {
-    return (
-      <VoteDetails 
-        vote={selectedVote} 
-        onBack={() => setSelectedVote(null)} 
-      />
-    );
-  }
 
-  if (loading) {
+  if (loading || !mp) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
         Loading MP details...
@@ -82,7 +181,7 @@ function MPDetail({ mp, onBack }) {
   return (
     <div style={{ padding: '20px' }}>
       <button 
-        onClick={onBack}
+        onClick={() => navigate('/')}
         style={{ 
           marginBottom: '20px',
           padding: '10px 20px', 
@@ -120,10 +219,12 @@ function MPDetail({ mp, onBack }) {
         <div>
           <h1 style={{ margin: '0 0 10px 0' }}>{mp.name}</h1>
           <p style={{ margin: '5px 0', fontSize: '18px', color: '#007bff' }}>
-            {mp.current_party?.short_name?.en}
+            {mp.current_party?.short_name?.en || mp.memberships?.[0]?.party?.short_name?.en}
           </p>
           <p style={{ margin: '5px 0', fontSize: '16px', color: '#666' }}>
-            {mp.current_riding?.name?.en}, {mp.current_riding?.province}
+            {mp.current_riding?.name?.en || mp.memberships?.[0]?.riding?.name?.en}
+            {(mp.current_riding?.province || mp.memberships?.[0]?.riding?.province) ? 
+              `, ${mp.current_riding?.province || mp.memberships?.[0]?.riding?.province}` : ''}
           </p>
           {mpDetails?.email && (
             <p style={{ margin: '5px 0', fontSize: '14px' }}>
@@ -135,13 +236,44 @@ function MPDetail({ mp, onBack }) {
 
       <div>
         <h2>{mp.name}'s Recent Voting Record</h2>
+        
+        {votesLoading && (
+          <div style={{ 
+            backgroundColor: '#fff3cd', 
+            color: '#856404', 
+            padding: '12px 16px', 
+            borderRadius: '6px', 
+            marginBottom: '20px',
+            border: '1px solid #ffeaa7'
+          }}>
+            🔄 Loading {mp.name}'s specific voting records... This may take up to 2 minutes for uncached MPs. The page will update automatically.
+          </div>
+        )}
+        
+        {!hasSpecificVotes && !votesLoading && votes.length > 0 && (
+          <div style={{ 
+            backgroundColor: '#e7f3ff', 
+            color: '#0969da', 
+            padding: '12px 16px', 
+            borderRadius: '6px', 
+            marginBottom: '20px',
+            border: '1px solid #b3d8ff'
+          }}>
+            ℹ️ Showing recent parliamentary votes. {mp.name}'s specific voting positions are being loaded in the background and will appear automatically.
+          </div>
+        )}
+        
         <p style={{ color: '#666', marginBottom: '20px' }}>
-          Showing how {mp.name} voted on recent parliamentary matters.
-          {votes.length > 0 && (
-            <span style={{ color: '#0969da' }}> Click any vote to see detailed party statistics and all MP votes.</span>
-          )}
-          {votes.length === 0 && !loading && (
-            <span style={{ color: '#856404' }}> Individual voting records are being cached in the background.</span>
+          {hasSpecificVotes ? (
+            <>
+              Showing how {mp.name} voted on recent parliamentary matters.
+              <span style={{ color: '#0969da' }}> Click any vote to see detailed party statistics and all MP votes.</span>
+            </>
+          ) : (
+            <>
+              Recent parliamentary votes. 
+              {votes.length > 0 && <span style={{ color: '#0969da' }}> Click any vote to see detailed party statistics and all MP votes.</span>}
+            </>
           )}
         </p>
         
@@ -161,7 +293,14 @@ function MPDetail({ mp, onBack }) {
             return (
               <div 
                 key={vote.url}
-                onClick={() => setSelectedVote(vote)}
+                onClick={() => {
+                  // Extract vote ID from URL like "/votes/45-1/4/" -> "45-1/4"
+                  const voteId = vote.url.replace('/votes/', '').replace(/\/$/, '');
+                  // URL encode the vote ID to handle slashes
+                  const encodedVoteId = encodeURIComponent(voteId);
+                  console.log('Navigating to vote:', voteId, 'encoded as:', encodedVoteId, 'from URL:', vote.url);
+                  navigate(`/vote/${encodedVoteId}`);
+                }}
                 style={{
                   border: '1px solid #ddd',
                   borderRadius: '8px',
@@ -194,7 +333,7 @@ function MPDetail({ mp, onBack }) {
                         {voteCategory}
                       </div>
                       
-                      {vote.mp_ballot && (
+                      {vote.mp_ballot ? (
                         <div style={{ 
                           padding: '6px 12px', 
                           borderRadius: '4px',
@@ -207,7 +346,19 @@ function MPDetail({ mp, onBack }) {
                         }}>
                           {mp.name} voted: {vote.mp_ballot}
                         </div>
-                      )}
+                      ) : !hasSpecificVotes ? (
+                        <div style={{ 
+                          padding: '6px 12px', 
+                          borderRadius: '4px',
+                          backgroundColor: '#f8f9fa',
+                          color: '#6c757d',
+                          fontStyle: 'italic',
+                          fontSize: '14px',
+                          border: '1px dashed #dee2e6'
+                        }}>
+                          {mp.name}'s vote: Loading...
+                        </div>
+                      ) : null}
                     </div>
                     
                     <div style={{ 
@@ -290,6 +441,56 @@ function MPDetail({ mp, onBack }) {
             );
           })}
         </div>
+        
+        {/* Load More Button */}
+        {hasMoreVotes && votes.length > 0 && (
+          <div style={{ textAlign: 'center', marginTop: '30px' }}>
+            <button
+              onClick={loadMoreVotes}
+              disabled={loadingMoreVotes}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: loadingMoreVotes ? '#6c757d' : '#007bff',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '16px',
+                fontWeight: '500',
+                cursor: loadingMoreVotes ? 'not-allowed' : 'pointer',
+                transition: 'background-color 0.2s',
+                minWidth: '140px'
+              }}
+              onMouseEnter={(e) => {
+                if (!loadingMoreVotes) {
+                  e.target.style.backgroundColor = '#0056b3';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!loadingMoreVotes) {
+                  e.target.style.backgroundColor = '#007bff';
+                }
+              }}
+            >
+              {loadingMoreVotes ? 'Loading...' : 'Load More Votes'}
+            </button>
+            <p style={{ 
+              marginTop: '10px', 
+              color: '#666', 
+              fontSize: '14px' 
+            }}>
+              Showing {votes.length} votes{hasSpecificVotes ? ` with ${mp.name}'s positions` : ''}
+              {loadingFromApi && <span style={{ color: '#0969da' }}> (now loading from live data)</span>}
+            </p>
+          </div>
+        )}
+        
+        {!hasMoreVotes && votes.length > 20 && (
+          <div style={{ textAlign: 'center', marginTop: '30px' }}>
+            <p style={{ color: '#666', fontSize: '14px' }}>
+              All available votes loaded ({votes.length} total)
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

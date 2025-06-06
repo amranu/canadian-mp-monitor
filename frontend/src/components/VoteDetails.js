@@ -1,27 +1,52 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { parliamentApi } from '../services/parliamentApi';
 
-function VoteDetails({ vote, onBack }) {
+function VoteDetails() {
+  const { voteId } = useParams();
+  const navigate = useNavigate();
+  const [vote, setVote] = useState(null);
   const [voteDetails, setVoteDetails] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadVoteDetails();
-  }, [vote]);
+    console.log('VoteDetails useEffect triggered, voteId:', voteId);
+    if (voteId) {
+      loadVoteDetails();
+    }
+  }, [voteId]);
 
   const loadVoteDetails = async () => {
     try {
       setLoading(true);
-      console.log('Loading vote details for vote:', vote);
-      const data = await parliamentApi.getVoteDetails(vote.url);
+      // Decode the URL-encoded vote ID
+      const decodedVoteId = decodeURIComponent(voteId);
+      const voteUrl = `/votes/${decodedVoteId}/`;
+      console.log('Loading vote details for voteId:', voteId, 'decoded:', decodedVoteId);
+      console.log('Full vote URL:', voteUrl);
+      const data = await parliamentApi.getVoteDetails(voteUrl);
+      console.log('Vote details response:', data);
       setVoteDetails(data);
+      // Create a vote object for the header display using the vote details data
+      const voteData = data.vote || data; // Handle both nested and direct response formats
+      setVote({
+        url: voteUrl,
+        description: voteData.description || { en: 'Parliamentary Vote' },
+        date: voteData.date,
+        session: voteData.session,
+        number: voteData.number,
+        result: voteData.result,
+        bill_url: voteData.bill_url
+      });
+      console.log('Vote state set successfully');
     } catch (error) {
       console.error('Error loading vote details:', error);
-      console.error('Vote object:', vote);
+      console.error('Vote ID:', voteId);
       // Set an error state for better user feedback
       setVoteDetails({ error: error.message });
     } finally {
       setLoading(false);
+      console.log('Loading finished');
     }
   };
 
@@ -47,7 +72,7 @@ function VoteDetails({ vote, onBack }) {
     }
   };
 
-  if (loading) {
+  if (loading || !vote) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
         Loading vote details...
@@ -67,7 +92,7 @@ function VoteDetails({ vote, onBack }) {
     return (
       <div style={{ padding: '20px' }}>
         <button 
-          onClick={onBack}
+          onClick={() => navigate(-1)}
           style={{ 
             marginBottom: '20px',
             padding: '10px 20px', 
@@ -78,7 +103,7 @@ function VoteDetails({ vote, onBack }) {
             cursor: 'pointer'
           }}
         >
-          ← Back to MP Profile
+          ← Back
         </button>
         
         <div style={{ 
@@ -118,7 +143,7 @@ function VoteDetails({ vote, onBack }) {
   return (
     <div style={{ padding: '20px' }}>
       <button 
-        onClick={onBack}
+        onClick={() => navigate(-1)}
         style={{ 
           marginBottom: '20px',
           padding: '10px 20px', 
@@ -129,7 +154,7 @@ function VoteDetails({ vote, onBack }) {
           cursor: 'pointer'
         }}
       >
-        ← Back to MP Profile
+        ← Back
       </button>
 
       {/* Vote Header */}
@@ -141,6 +166,62 @@ function VoteDetails({ vote, onBack }) {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
           <div style={{ flex: 1 }}>
+            {vote.bill_url && (
+              <div style={{ 
+                marginBottom: '15px',
+                padding: '12px 16px',
+                backgroundColor: '#e7f3ff',
+                borderRadius: '8px',
+                border: '2px solid #0969da'
+              }}>
+                <div style={{ fontSize: '14px', color: '#0969da', fontWeight: '600', marginBottom: '4px' }}>
+                  📋 BILL
+                </div>
+                <div style={{ 
+                  fontSize: '20px', 
+                  fontWeight: 'bold', 
+                  color: '#0969da',
+                  lineHeight: '1.2',
+                  marginBottom: '8px'
+                }}>
+                  {vote.bill_url.replace('/bills/', '').replace('/', ' ').toUpperCase()}
+                </div>
+                {(() => {
+                  // Extract bill title from description
+                  const description = vote.description?.en || '';
+                  // Try multiple patterns to extract bill title
+                  let billTitle = null;
+                  
+                  // Pattern 1: "Bill C-79, An Act for..."
+                  let match = description.match(/Bill [A-Z]-\d+,?\s*(.+?)(?:\s*\(|$)/i);
+                  if (match && match[1]) {
+                    billTitle = match[1].trim();
+                  }
+                  
+                  // Pattern 2: "...of Bill C-79, An Act for..." (for 3rd reading cases)
+                  if (!billTitle) {
+                    match = description.match(/of Bill [A-Z]-\d+,?\s*(.+?)(?:\s*\(|$)/i);
+                    if (match && match[1]) {
+                      billTitle = match[1].trim();
+                    }
+                  }
+                  
+                  if (billTitle) {
+                    return (
+                      <div style={{ 
+                        fontSize: '16px', 
+                        color: '#0969da',
+                        lineHeight: '1.3',
+                        fontStyle: 'italic'
+                      }}>
+                        {billTitle}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </div>
+            )}
             <h1 style={{ margin: '0 0 10px 0', fontSize: '24px', lineHeight: '1.3' }}>
               {vote.description?.en}
             </h1>
@@ -163,19 +244,27 @@ function VoteDetails({ vote, onBack }) {
           </div>
         </div>
 
-        {vote.bill_url && (
-          <div style={{ 
-            padding: '10px 15px',
-            backgroundColor: '#e7f3ff',
-            borderRadius: '6px',
-            fontSize: '14px',
-            color: '#0969da',
-            marginTop: '15px'
-          }}>
-            📋 <strong>Bill:</strong> {vote.bill_url.replace('/bills/', '').replace('/', ' ')}
-          </div>
-        )}
       </div>
+
+
+      {/* Historical MP Data Notice */}
+      {voteDetails.mp_sources && voteDetails.mp_sources.historical_mps > 0 && (
+        <div style={{ 
+          marginBottom: '20px',
+          padding: '12px 16px',
+          backgroundColor: '#fff3cd',
+          borderRadius: '6px',
+          border: '1px solid #ffeaa7'
+        }}>
+          <div style={{ fontSize: '14px', color: '#856404', fontWeight: '600', marginBottom: '4px' }}>
+            📚 Historical Parliament Data
+          </div>
+          <div style={{ fontSize: '14px', color: '#856404' }}>
+            This vote includes {voteDetails.mp_sources.historical_mps} MPs from a previous parliamentary session who are no longer in office.
+            {voteDetails.mp_sources.current_mps > 0 && ` Also showing ${voteDetails.mp_sources.current_mps} current MPs.`}
+          </div>
+        </div>
+      )}
 
       {/* Party Statistics */}
       <div style={{ marginBottom: '30px' }}>
