@@ -237,31 +237,6 @@ function MPDetail() {
       <div>
         <h2>{mp.name}'s Recent Voting Record</h2>
         
-        {votesLoading && (
-          <div style={{ 
-            backgroundColor: '#fff3cd', 
-            color: '#856404', 
-            padding: '12px 16px', 
-            borderRadius: '6px', 
-            marginBottom: '20px',
-            border: '1px solid #ffeaa7'
-          }}>
-            🔄 Loading {mp.name}'s specific voting records... This may take up to 2 minutes for uncached MPs. The page will update automatically.
-          </div>
-        )}
-        
-        {!hasSpecificVotes && !votesLoading && votes.length > 0 && (
-          <div style={{ 
-            backgroundColor: '#e7f3ff', 
-            color: '#0969da', 
-            padding: '12px 16px', 
-            borderRadius: '6px', 
-            marginBottom: '20px',
-            border: '1px solid #b3d8ff'
-          }}>
-            ℹ️ Showing recent parliamentary votes. {mp.name}'s specific voting positions are being loaded in the background and will appear automatically.
-          </div>
-        )}
         
         <p style={{ color: '#666', marginBottom: '20px' }}>
           {hasSpecificVotes ? (
