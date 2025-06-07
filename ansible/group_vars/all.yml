@@ -1,0 +1,21 @@
+# Canadian MP Monitor Deployment Variables
+
+# Repository settings
+git_repo: "https://github.com/amranu/canadian-mp-monitor.git"
+git_branch: "master"
+
+# SSL/TLS settings
+letsencrypt_email: "amranu@gmail.com"
+
+# Application settings
+app_domain: "mptracker.ca"
+
+# Docker settings
+docker_compose_version: "1.29.2"
+
+# Backup settings (optional)
+backup_enabled: false
+backup_retention_days: 7
+
+# Monitoring settings (optional)
+monitoring_enabled: false
