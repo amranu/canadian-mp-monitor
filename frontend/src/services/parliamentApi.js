@@ -176,5 +176,15 @@ export const parliamentApi = {
 
   getCacheStatus() {
     return cache.getStatus();
+  },
+
+  async getVoteBallots(voteUrl) {
+    const response = await fetch(`${API_BASE}/votes/ballots?vote=${voteUrl}&limit=400`, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch vote ballots: ${response.status}`);
+    }
+    
+    return response.json();
   }
 };
