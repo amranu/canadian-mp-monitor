@@ -265,30 +265,40 @@ def load_persistent_cache():
         }
         print(f"[{datetime.now()}] Loaded {len(cache['votes']['data'])} votes from cache")
     
-    # Load MP votes
+    # Only count MP votes cache files, don't load them into memory at startup
+    mp_cache_count = 0
     if os.path.exists(MP_VOTES_CACHE_DIR):
-        for filename in os.listdir(MP_VOTES_CACHE_DIR):
-            if filename.endswith('.json'):
-                mp_slug = filename[:-5]  # Remove .json extension
-                mp_data = load_cache_from_file(os.path.join(MP_VOTES_CACHE_DIR, filename))
-                if mp_data:
-                    # Handle both old format (list) and new format (dict with data/expires)
-                    if isinstance(mp_data, list):
-                        cache['mp_votes'][mp_slug] = {
-                            'data': mp_data,
-                            'expires': time.time() + CACHE_DURATION,
-                            'loading': False
-                        }
-                    else:
-                        cache['mp_votes'][mp_slug] = {
-                            'data': mp_data.get('data', []),
-                            'expires': mp_data.get('expires', 0),
-                            'loading': False
-                        }
-        print(f"[{datetime.now()}] Loaded {len(cache['mp_votes'])} MP vote caches")
+        mp_cache_count = len([f for f in os.listdir(MP_VOTES_CACHE_DIR) if f.endswith('.json')])
+        print(f"[{datetime.now()}] Found {mp_cache_count} MP vote cache files (loading on-demand)")
     
     # Load historical MPs
     load_historical_mps()
+
+def load_mp_votes_on_demand(mp_slug):
+    """Load MP voting records from cache file on-demand"""
+    try:
+        mp_cache_file = os.path.join(MP_VOTES_CACHE_DIR, f'{mp_slug}.json')
+        if os.path.exists(mp_cache_file):
+            mp_data = load_cache_from_file(mp_cache_file)
+            if mp_data:
+                # Handle both old format (list) and new format (dict with data/expires)
+                if isinstance(mp_data, list):
+                    cache['mp_votes'][mp_slug] = {
+                        'data': mp_data,
+                        'expires': time.time() + CACHE_DURATION,
+                        'loading': False
+                    }
+                else:
+                    cache['mp_votes'][mp_slug] = {
+                        'data': mp_data.get('data', []),
+                        'expires': mp_data.get('expires', 0),
+                        'loading': False
+                    }
+                print(f"[{datetime.now()}] Loaded {len(cache['mp_votes'][mp_slug]['data'])} votes for {mp_slug} on-demand")
+                return True
+    except Exception as e:
+        print(f"[{datetime.now()}] Error loading MP votes for {mp_slug}: {e}")
+    return False
 
 # Load cache on startup
 load_persistent_cache()
@@ -460,7 +470,7 @@ def get_politician_votes(politician_path):
     offset = int(request.args.get('offset', 0))
     
     try:
-        # Only serve from cached data - never call external API
+        # Check if MP votes are already in memory cache and valid
         if (politician_path in cache['mp_votes'] and 
             cache['mp_votes'][politician_path]['data'] is not None and 
             time.time() < cache['mp_votes'][politician_path]['expires']):
@@ -485,6 +495,31 @@ def get_politician_votes(politician_path):
                 'cached': True,
                 'total_cached': len(all_cached_votes),
                 'has_more': has_more
+            })
+        
+        # Try loading MP votes from cache file on-demand
+        if load_mp_votes_on_demand(politician_path):
+            all_cached_votes = cache['mp_votes'][politician_path]['data']
+            
+            # Apply pagination to newly loaded data
+            end_index = offset + limit
+            paginated_votes = all_cached_votes[offset:end_index]
+            has_more = end_index < len(all_cached_votes)
+            
+            print(f"[{datetime.now()}] Serving {len(paginated_votes)} on-demand loaded votes for {politician_path} (total: {len(all_cached_votes)})")
+            
+            return jsonify({
+                'objects': paginated_votes,
+                'pagination': {
+                    'offset': offset,
+                    'limit': limit,
+                    'next_url': None,
+                    'previous_url': None
+                },
+                'cached': True,
+                'total_cached': len(all_cached_votes),
+                'has_more': has_more,
+                'source': 'on_demand_cache'
             })
         
         # Check if currently being cached in background
@@ -938,37 +973,44 @@ def cache_mp_votes_background(mp_slug):
             cache['mp_votes'][mp_slug]['loading'] = False
 
 def start_background_mp_votes_caching():
-    """Start background caching of MP votes for popular MPs"""
+    """Start minimal background caching for top 10 MPs only"""
     def background_task():
         try:
             if not cache['politicians']['data']:
                 return
                 
-            # Cache votes for first 100 MPs (increased for better coverage)
-            popular_mps = cache['politicians']['data'][:100]
+            # Cache only first 10 MPs to reduce memory usage
+            popular_mps = cache['politicians']['data'][:10]
             
-            print(f"[{datetime.now()}] Starting background caching for {len(popular_mps)} MPs")
+            print(f"[{datetime.now()}] Starting minimal background caching for {len(popular_mps)} MPs")
             
             for mp in popular_mps:
                 mp_slug = mp['url'].replace('/politicians/', '').replace('/', '')
                 
-                # Check if already cached and valid
+                # Check if already in memory cache
                 if (mp_slug in cache['mp_votes'] and 
                     cache['mp_votes'][mp_slug]['data'] is not None and 
                     time.time() < cache['mp_votes'][mp_slug]['expires']):
                     continue
                 
-                # Cache this MP's votes
-                cache_mp_votes_background(mp_slug)
-                
-                # Small delay between MPs to avoid overwhelming the API
-                time.sleep(0.5)
+                # Use on-demand loading instead of API calls
+                mp_cache_file = os.path.join(MP_VOTES_CACHE_DIR, f'{mp_slug}.json')
+                if os.path.exists(mp_cache_file):
+                    load_mp_votes_on_demand(mp_slug)
+                    print(f"[{datetime.now()}] Pre-loaded cache for popular MP: {mp_slug}")
+                    
+                    # Longer delay to reduce memory pressure
+                    time.sleep(2.0)
                 
         except Exception as e:
             print(f"[{datetime.now()}] Error in background MP votes caching: {e}")
     
-    # Run in background thread
-    threading.Thread(target=background_task, daemon=True).start()
+    # Run in background thread with delay
+    def delayed_start():
+        time.sleep(60)  # Wait 60 seconds after startup
+        background_task()
+    
+    threading.Thread(target=delayed_start, daemon=True).start()
 
 @app.route('/api/votes')
 def get_votes():
