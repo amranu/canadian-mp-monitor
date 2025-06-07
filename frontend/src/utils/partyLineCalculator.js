@@ -18,7 +18,9 @@ export const calculatePartyPosition = (ballots, party) => {
     // Check all possible party field names in the ballot data structure
     let partyName = '';
     
-    if (ballot.politician_party) {
+    if (ballot.mp_party) {
+      partyName = ballot.mp_party;
+    } else if (ballot.politician_party) {
       partyName = ballot.politician_party;
     } else if (ballot.party) {
       partyName = ballot.party;
@@ -28,8 +30,8 @@ export const calculatePartyPosition = (ballots, party) => {
       partyName = ballot.politician.party;
     }
     
-    // If still no party name, log the ballot structure for debugging
-    if (!partyName && console.log) {
+    // Reduced logging to prevent spam
+    if (!partyName && Math.random() < 0.01) {
       console.log('Could not extract party from ballot:', Object.keys(ballot));
     }
     
