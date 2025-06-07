@@ -11,15 +11,43 @@ import { parliamentApi } from '../services/parliamentApi';
  * @returns {Object} Party voting statistics and majority position
  */
 export const calculatePartyPosition = (ballots, party) => {
+  console.log('Calculating party position for:', party);
+  console.log('Sample ballot structure:', ballots[0]);
+  
   const partyBallots = ballots.filter(ballot => {
-    const ballotParty = ballot.politician_party || ballot.party || '';
-    return ballotParty.toLowerCase().includes(party.toLowerCase()) ||
-           (party === 'Conservative' && ballotParty.includes('CPC')) ||
-           (party === 'Liberal' && ballotParty.includes('Lib')) ||
-           (party === 'NDP' && ballotParty.includes('NDP')) ||
-           (party === 'Bloc' && ballotParty.includes('Bloc')) ||
-           (party === 'Green' && ballotParty.includes('Green'));
+    // Check all possible party field names in the ballot data structure
+    let partyName = '';
+    
+    if (ballot.politician_party) {
+      partyName = ballot.politician_party;
+    } else if (ballot.party) {
+      partyName = ballot.party;
+    } else if (ballot.politician?.current_party?.short_name?.en) {
+      partyName = ballot.politician.current_party.short_name.en;
+    } else if (ballot.politician?.party) {
+      partyName = ballot.politician.party;
+    }
+    
+    // If still no party name, log the ballot structure for debugging
+    if (!partyName && console.log) {
+      console.log('Could not extract party from ballot:', Object.keys(ballot));
+    }
+    
+    const isMatch = partyName.toLowerCase().includes(party.toLowerCase()) ||
+           (party === 'Conservative' && (partyName.includes('CPC') || partyName.includes('Conservative'))) ||
+           (party === 'Liberal' && partyName.includes('Liberal')) ||
+           (party === 'NDP' && partyName.includes('NDP')) ||
+           (party === 'Bloc' && partyName.includes('Bloc')) ||
+           (party === 'Green' && partyName.includes('Green'));
+    
+    if (isMatch) {
+      console.log('✓ Matched ballot party:', partyName, 'for target:', party);
+    }
+    
+    return isMatch;
   });
+
+  console.log(`Found ${partyBallots.length} ballots for ${party} out of ${ballots.length} total`);
 
   if (partyBallots.length === 0) {
     return {
@@ -92,12 +120,17 @@ export const calculatePartyLineStats = async (mpVotes, mpParty) => {
       // Skip if MP didn't cast yes/no vote
       if (vote.mp_ballot !== 'Yes' && vote.mp_ballot !== 'No') continue;
 
-      // Get detailed ballot information for this vote
-      const voteDetails = await parliamentApi.getVoteDetails(vote.url);
-      if (!voteDetails || !voteDetails.ballots) continue;
+      // Get detailed ballot information for this vote using the ballots endpoint
+      const ballotsData = await parliamentApi.getVoteBallots(vote.url);
+      if (!ballotsData || !ballotsData.objects || ballotsData.objects.length === 0) {
+        console.log('No ballot data for:', vote.url);
+        continue;
+      }
+      
+      console.log('Processing vote:', vote.url, 'with', ballotsData.objects.length, 'ballots');
 
       // Calculate party position for this vote
-      const partyStats = calculatePartyPosition(voteDetails.ballots, mpParty);
+      const partyStats = calculatePartyPosition(ballotsData.objects, mpParty);
       
       // Skip if party didn't have a clear majority position
       if (!partyStats.majorityPosition) continue;

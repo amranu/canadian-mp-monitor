@@ -39,6 +39,12 @@ function MPDetail() {
     }
   }, [votes]);
 
+  // Reset party-line stats when session changes
+  useEffect(() => {
+    setPartyLineStats(null);
+    setCalculatingPartyLine(false);
+  }, [selectedSession]);
+
   // Load all votes when a specific session is selected
   useEffect(() => {
     if (selectedSession !== 'all' && selectedSession !== 'current' && mp && !loadingMoreVotes) {
@@ -224,7 +230,20 @@ function MPDetail() {
     setCalculatingPartyLine(true);
     try {
       const mpParty = mp.current_party?.short_name?.en || 'Unknown';
-      const stats = await calculatePartyLineStats(votes.slice(0, 50), mpParty); // Limit to first 50 votes for performance
+      console.log('Starting party-line calculation for:', mpParty);
+      console.log('Selected session:', selectedSession);
+      
+      // Filter votes by selected session
+      let filteredVotes = votes;
+      if (selectedSession !== 'all' && selectedSession !== 'current') {
+        filteredVotes = votes.filter(vote => vote.session === selectedSession);
+        console.log(`Filtered to ${filteredVotes.length} votes for session ${selectedSession}`);
+      } else {
+        filteredVotes = votes.slice(0, 100); // Limit for performance
+      }
+      
+      const stats = await calculatePartyLineStats(filteredVotes, mpParty);
+      console.log('Party-line stats calculated:', stats);
       setPartyLineStats(stats);
     } catch (error) {
       console.error('Error calculating party-line stats:', error);
