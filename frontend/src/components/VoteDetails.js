@@ -80,7 +80,7 @@ function VoteDetails() {
     );
   }
 
-  if (!voteDetails) {
+  if (!voteDetails || (!voteDetails.ballots && !voteDetails.party_stats && !voteDetails.vote)) {
     return (
       <div style={{ padding: '20px', textAlign: 'center' }}>
         Error loading vote details.
@@ -138,7 +138,9 @@ function VoteDetails() {
     );
   }
 
-  const sortedParties = Object.entries(voteDetails.party_stats).sort((a, b) => b[1].total - a[1].total);
+  const sortedParties = voteDetails.party_stats ? 
+    Object.entries(voteDetails.party_stats).sort((a, b) => b[1].total - a[1].total) : 
+    [];
 
   return (
     <div style={{ padding: '20px' }}>
@@ -248,7 +250,7 @@ function VoteDetails() {
 
 
       {/* Historical MP Data Notice */}
-      {voteDetails.mp_sources && voteDetails.mp_sources.historical_mps > 0 && (
+      {voteDetails.mp_sources && voteDetails.mp_sources.historical_mps && voteDetails.mp_sources.historical_mps > 0 && (
         <div style={{ 
           marginBottom: '20px',
           padding: '12px 16px',
@@ -261,12 +263,13 @@ function VoteDetails() {
           </div>
           <div style={{ fontSize: '14px', color: '#856404' }}>
             This vote includes {voteDetails.mp_sources.historical_mps} MPs from a previous parliamentary session who are no longer in office.
-            {voteDetails.mp_sources.current_mps > 0 && ` Also showing ${voteDetails.mp_sources.current_mps} current MPs.`}
+            {voteDetails.mp_sources.current_mps && voteDetails.mp_sources.current_mps > 0 && ` Also showing ${voteDetails.mp_sources.current_mps} current MPs.`}
           </div>
         </div>
       )}
 
       {/* Party Statistics */}
+      {sortedParties && sortedParties.length > 0 && (
       <div style={{ marginBottom: '30px' }}>
         <h2 style={{ marginBottom: '20px' }}>Party Voting Statistics</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
@@ -300,6 +303,7 @@ function VoteDetails() {
           ))}
         </div>
       </div>
+      )}
 
       {/* Unified MP Vote Visualization */}
       <div style={{ marginBottom: '30px' }}>
@@ -322,30 +326,34 @@ function VoteDetails() {
             gap: '3px',
             justifyContent: 'start'
           }}>
-            {voteDetails.ballots
+            {(voteDetails.ballots || [])
               .sort((a, b) => {
                 // Sort by party first, then by vote type, then by name
-                if (a.mp_party !== b.mp_party) {
-                  return a.mp_party.localeCompare(b.mp_party);
+                const partyA = a.mp_party || 'Unknown';
+                const partyB = b.mp_party || 'Unknown';
+                if (partyA !== partyB) {
+                  return partyA.localeCompare(partyB);
                 }
                 const voteOrder = { 'Yes': 0, 'No': 1, 'Paired': 2, 'Absent': 3 };
                 const aOrder = voteOrder[a.ballot] || 9;
                 const bOrder = voteOrder[b.ballot] || 9;
                 if (aOrder !== bOrder) return aOrder - bOrder;
-                return a.mp_name.localeCompare(b.mp_name);
+                const nameA = a.mp_name || 'Unknown';
+                const nameB = b.mp_name || 'Unknown';
+                return nameA.localeCompare(nameB);
               })
               .map((mp, index) => (
                 <div
                   key={index}
-                  title={`${mp.mp_name} (${mp.mp_party})\n${mp.mp_riding}, ${mp.mp_province}\nVoted: ${mp.ballot}`}
+                  title={`${mp.mp_name || 'Unknown'} (${mp.mp_party || 'Unknown'})\n${mp.mp_riding || 'Unknown'}, ${mp.mp_province || 'Unknown'}\nVoted: ${mp.ballot || 'Unknown'}`}
                   style={{
                     width: '22px',
                     height: '22px',
-                    backgroundColor: getPartyColor(mp.mp_party),
-                    border: `3px solid ${getVoteColor(mp.ballot)}`,
+                    backgroundColor: getPartyColor(mp.mp_party || 'Unknown'),
+                    border: `3px solid ${getVoteColor(mp.ballot || 'unknown')}`,
                     borderRadius: '3px',
                     cursor: 'pointer',
-                    opacity: mp.ballot.toLowerCase() === 'absent' ? 0.4 : 1,
+                    opacity: (mp.ballot || '').toLowerCase() === 'absent' ? 0.4 : 1,
                     transition: 'transform 0.1s, box-shadow 0.1s'
                   }}
                   onMouseEnter={(e) => {
@@ -420,8 +428,8 @@ function VoteDetails() {
       <div>
         <h2 style={{ marginBottom: '20px' }}>Detailed MP Voting List</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {voteDetails.ballots
-            .sort((a, b) => a.mp_name.localeCompare(b.mp_name))
+          {(voteDetails.ballots || [])
+            .sort((a, b) => (a.mp_name || '').localeCompare(b.mp_name || ''))
             .map((ballot, index) => (
             <div key={index} style={{
               display: 'flex',
@@ -435,24 +443,24 @@ function VoteDetails() {
                 <div style={{
                   width: '12px',
                   height: '12px',
-                  backgroundColor: getPartyColor(ballot.mp_party),
+                  backgroundColor: getPartyColor(ballot.mp_party || 'Unknown'),
                   borderRadius: '2px'
                 }}></div>
-                <span style={{ fontWeight: '500' }}>{ballot.mp_name}</span>
+                <span style={{ fontWeight: '500' }}>{ballot.mp_name || 'Unknown'}</span>
                 <span style={{ color: '#666', fontSize: '14px' }}>
-                  ({ballot.mp_party}) - {ballot.mp_riding}, {ballot.mp_province}
+                  ({ballot.mp_party || 'Unknown'}) - {ballot.mp_riding || 'Unknown'}, {ballot.mp_province || 'Unknown'}
                 </span>
               </div>
               
               <div style={{
                 padding: '4px 8px',
                 borderRadius: '4px',
-                backgroundColor: getVoteColor(ballot.ballot),
+                backgroundColor: getVoteColor(ballot.ballot || 'unknown'),
                 color: 'white',
                 fontSize: '12px',
                 fontWeight: 'bold'
               }}>
-                {ballot.ballot}
+                {ballot.ballot || 'Unknown'}
               </div>
             </div>
           ))}
