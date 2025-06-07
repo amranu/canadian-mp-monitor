@@ -179,28 +179,21 @@
         delay: 10
         timeout: 60
 
-    - name: Remove any existing ssl files
-      file:
-        path: "{{ app_dir }}/ssl"
-        state: absent
-
-    - name: Create self-signed SSL certificate directory
-      file:
-        path: "{{ app_dir }}/ssl"
-        state: directory
-        owner: "{{ app_user }}"
-        group: "{{ app_user }}"
-        mode: '0755'
-
-    - name: Generate self-signed SSL certificate
-      shell: |
-        cd {{ app_dir }}/ssl
-        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-          -keyout privkey.pem \
-          -out fullchain.pem \
-          -subj "/C=CA/ST=Ontario/L=Ottawa/O=MP Monitor/CN={{ domain_name }}"
-        chown {{ app_user }}:{{ app_user }} *.pem
-      become: yes
+    - name: Obtain Let's Encrypt SSL certificate
+      docker_container:
+        name: certbot-obtain
+        image: certbot/certbot
+        state: started
+        detach: no
+        cleanup: yes
+        volumes:
+          - "{{ app_name }}_certbot_conf:/etc/letsencrypt"
+          - "{{ app_name }}_certbot_www:/var/www/certbot"
+        command: >
+          certonly --webroot --webroot-path=/var/www/certbot
+          --email {{ email }} --agree-tos --no-eff-email
+          -d {{ domain_name }} -d www.{{ domain_name }}
+      become_user: "{{ app_user }}"
 
     - name: Stop nginx
       shell: |
