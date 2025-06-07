@@ -133,8 +133,8 @@ def enrich_cached_vote_details(cached_data):
     
     # For large historical votes, skip enrichment to avoid timeouts
     ballot_count = len(cached_data['ballots'])
-    if ballot_count > 200:
-        print(f"[{datetime.now()}] Skipping enrichment for large vote with {ballot_count} ballots to avoid timeout")
+    if ballot_count > 500:  # Increased limit since we have cached MP data
+        print(f"[{datetime.now()}] Skipping enrichment for very large vote with {ballot_count} ballots to avoid timeout")
         return cached_data
     
     # Get politician maps
