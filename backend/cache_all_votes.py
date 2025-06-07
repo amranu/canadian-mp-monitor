@@ -102,7 +102,7 @@ def fetch_all_votes(limit_per_request=100):
                 break
                 
             offset += limit_per_request
-            time.sleep(0.1)  # Be nice to the API
+            time.sleep(0.5)  # Increased delay between vote list fetches
             
         except Exception as e:
             log(f"Error fetching votes at offset {offset}: {e}")
@@ -122,6 +122,9 @@ def fetch_vote_details(vote_url, vote_id):
         )
         vote_response.raise_for_status()
         vote_data = vote_response.json()
+        
+        # Small delay between the two API calls to reduce load
+        time.sleep(0.2)
         
         # Get all ballots for this vote
         ballots_response = requests.get(
@@ -156,7 +159,7 @@ def fetch_vote_details(vote_url, vote_id):
         log(f"✗ Error caching vote {vote_id}: {e}")
         return vote_id, False
 
-def cache_all_vote_details(votes, max_workers=3):
+def cache_all_vote_details(votes, max_workers=1):
     """Cache detailed information for all votes"""
     log(f"Starting to cache details for {len(votes)} votes...")
     
@@ -188,8 +191,8 @@ def cache_all_vote_details(votes, max_workers=3):
     successful = 0
     failed = 0
     
-    # Process in batches with concurrent requests
-    batch_size = 20
+    # Process in batches with concurrent requests - smaller batches to reduce load
+    batch_size = 5
     for i in range(0, len(votes_to_cache), batch_size):
         batch = votes_to_cache[i:i + batch_size]
         batch_num = (i // batch_size) + 1
@@ -224,9 +227,9 @@ def cache_all_vote_details(votes, max_workers=3):
         save_vote_cache_index(cache_index)
         log(f"Batch {batch_num} complete. Progress: {successful} successful, {failed} failed")
         
-        # Small delay between batches
+        # Longer delay between batches to reduce server load
         if i + batch_size < len(votes_to_cache):
-            time.sleep(1)
+            time.sleep(5)  # Increased from 1 to 5 seconds
     
     log(f"Vote details caching complete: {successful} successful, {failed} failed")
     return successful, failed
