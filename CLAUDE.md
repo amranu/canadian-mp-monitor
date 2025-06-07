@@ -189,3 +189,53 @@ The application handles various error conditions:
 - Base URL: `https://api.openparliament.ca`
 - User Agent: `MP-Monitor-App/1.0`
 - Timeout: 30 seconds for most requests
+
+## Production Deployment
+
+### Server Information
+- **Domain**: `https://mptracker.ca`
+- **Server**: DigitalOcean droplet at `143.198.42.59`
+- **Deployment**: Docker-based containerized application
+- **Cache Location**: `/home/root/mp-monitor/backend/cache/` on server
+
+### Server Cache Status (as of 2025-06-07)
+The production server has a fully populated cache with:
+- **Politicians Cache**: `politicians.json` (127KB, updated 15:41)
+- **Votes Cache**: `votes.json` (282KB, updated 15:41) 
+- **MP Votes Cache**: `mp_votes/` directory with individual MP files
+  - Contains 2,522+ voting records per MP (e.g., `ziad-aboultaif.json` = 1.5MB)
+  - Updated: 2025-06-07 15:49
+- **Vote Details Cache**: `vote_details/` directory with comprehensive vote data
+- **Vote Cache Index**: `vote_cache_index.json` (474KB) for fallback lookups
+- **Historical MPs**: `historical_mps.json` (873KB) for past parliamentarians
+
+### Cache Files Structure on Server
+```
+/home/root/mp-monitor/backend/cache/
+├── politicians.json           # Current MPs
+├── votes.json                # Recent parliamentary votes  
+├── vote_cache_index.json     # Index for vote detail lookups
+├── historical_mps.json       # MPs from previous sessions
+├── mp_voting_statistics.json # Cache generation stats
+├── mp_votes/                 # Individual MP voting records
+│   ├── ziad-aboultaif.json  # 2,522 votes, 1.5MB
+│   └── [other-mp-slug].json
+└── vote_details/             # Detailed vote information
+    ├── _votes_44-1_1_.json
+    └── [other vote files]
+```
+
+### Known Issues
+- **Intermittent MP Vote Loading**: Some MPs (e.g., Ziad Aboultaif) show `total_cached: 0` in API responses despite having populated cache files on server
+- **Docker Cache Mismatch**: Flask app running in Docker container may not be accessing the correct cache directory
+- **Cache Directory Mapping**: Potential volume mount issue between host cache (`/home/root/mp-monitor/backend/cache/`) and container cache path
+
+### Server Management
+Use Ansible for server operations:
+```bash
+# Access server cache
+ansible mptracker -i ansible/inventory.yml -m shell -a "ls -la /home/root/mp-monitor/backend/cache/"
+
+# Check running processes
+ansible mptracker -i ansible/inventory.yml -m shell -a "ps aux | grep python"
+```

@@ -272,11 +272,19 @@ def load_persistent_cache():
                 mp_slug = filename[:-5]  # Remove .json extension
                 mp_data = load_cache_from_file(os.path.join(MP_VOTES_CACHE_DIR, filename))
                 if mp_data:
-                    cache['mp_votes'][mp_slug] = {
-                        'data': mp_data.get('data', []),
-                        'expires': mp_data.get('expires', 0),
-                        'loading': False
-                    }
+                    # Handle both old format (list) and new format (dict with data/expires)
+                    if isinstance(mp_data, list):
+                        cache['mp_votes'][mp_slug] = {
+                            'data': mp_data,
+                            'expires': time.time() + CACHE_DURATION,
+                            'loading': False
+                        }
+                    else:
+                        cache['mp_votes'][mp_slug] = {
+                            'data': mp_data.get('data', []),
+                            'expires': mp_data.get('expires', 0),
+                            'loading': False
+                        }
         print(f"[{datetime.now()}] Loaded {len(cache['mp_votes'])} MP vote caches")
     
     # Load historical MPs
