@@ -231,11 +231,62 @@ The production server has a fully populated cache with:
 - **Cache Directory Mapping**: Potential volume mount issue between host cache (`/home/root/mp-monitor/backend/cache/`) and container cache path
 
 ### Server Management
-Use Ansible for server operations:
+
+**Ansible Configuration**: Server access is configured in `ansible/inventory.yml`
+- **Host**: `mptracker` (143.198.42.59)
+- **User**: `root` 
+- **SSH Key**: `~/.ssh/id_rsa`
+- **Project Path**: `/home/root/mp-monitor/`
+
+#### Common Server Operations
 ```bash
-# Access server cache
+# Deploy code changes
+ansible mptracker -i ansible/inventory.yml -m shell -a "cd /home/root/mp-monitor && git pull origin master"
+
+# Rebuild and restart containers
+ansible mptracker -i ansible/inventory.yml -m shell -a "cd /home/root/mp-monitor && docker compose build --no-cache frontend && docker compose stop frontend && docker compose up -d frontend"
+
+# Check cache status
 ansible mptracker -i ansible/inventory.yml -m shell -a "ls -la /home/root/mp-monitor/backend/cache/"
 
-# Check running processes
-ansible mptracker -i ansible/inventory.yml -m shell -a "ps aux | grep python"
+# Check running containers
+ansible mptracker -i ansible/inventory.yml -m shell -a "cd /home/root/mp-monitor && docker compose ps"
+
+# View container logs
+ansible mptracker -i ansible/inventory.yml -m shell -a "cd /home/root/mp-monitor && docker logs mp-monitor-backend --tail 20"
+
+# Check memory usage
+ansible mptracker -i ansible/inventory.yml -m shell -a "free -h && df -h"
+
+# Restart specific service
+ansible mptracker -i ansible/inventory.yml -m shell -a "cd /home/root/mp-monitor && docker compose restart backend"
 ```
+
+#### Cache Management on Server
+```bash
+# Check cache files
+ansible mptracker -i ansible/inventory.yml -m shell -a "ls /home/root/mp-monitor/backend/cache/mp_votes/ | wc -l"
+
+# Check specific MP cache
+ansible mptracker -i ansible/inventory.yml -m shell -a "ls -la /home/root/mp-monitor/backend/cache/mp_votes/ziad-aboultaif.json"
+
+# Check vote details cache
+ansible mptracker -i ansible/inventory.yml -m shell -a "ls /home/root/mp-monitor/backend/cache/vote_details/ | grep '44-1_451'"
+```
+
+#### Deployment Workflow
+1. **Commit changes locally**: `git add . && git commit -m "message" && git push origin master`
+2. **Pull to server**: `ansible mptracker -i ansible/inventory.yml -m shell -a "cd /home/root/mp-monitor && git pull origin master"`
+3. **Rebuild containers**: `ansible mptracker -i ansible/inventory.yml -m shell -a "cd /home/root/mp-monitor && docker compose build --no-cache [service] && docker compose up -d [service]"`
+4. **Verify deployment**: Check logs and test functionality
+
+#### Party-Line Voting System
+- **Heuristic Method**: Uses party position assumptions (original implementation)
+- **Accurate Method**: Analyzes actual party majority positions from ballot data
+- **API Endpoints**: 
+  - `/api/votes/{vote}/details` - Vote details with ballots
+  - `/api/votes/ballots?vote={vote}` - Specific ballots endpoint
+- **Known Issues**: 
+  - Vote URL parsing for ballots API (needs /votes/44-1/451/ -> 44-1_451 format)
+  - Session filtering resets party-line stats correctly
+  - Memory optimization prevents startup crashes with large cache
