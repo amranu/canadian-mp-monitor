@@ -14,6 +14,7 @@ function Bills() {
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [filterLoading, setFilterLoading] = useState(false);
 
   useEffect(() => {
     loadBills();
@@ -22,6 +23,9 @@ function Bills() {
   const loadBills = async (resetOffset = true) => {
     try {
       setLoading(true);
+      if (resetOffset) {
+        setFilterLoading(true);
+      }
       const newOffset = resetOffset ? 0 : offset;
       
       const filters = {};
@@ -57,6 +61,7 @@ function Bills() {
       console.error('Error loading bills:', error);
     } finally {
       setLoading(false);
+      setFilterLoading(false);
     }
   };
 
@@ -94,6 +99,7 @@ function Bills() {
       console.error('Error searching bills:', error);
     } finally {
       setLoading(false);
+      setFilterLoading(false);
     }
   };
 
@@ -110,6 +116,13 @@ function Bills() {
 
   const formatBillNumber = (bill) => {
     return `${bill.session} - ${bill.number}`;
+  };
+
+  const getOpenParliamentUrl = (bill) => {
+    if (bill.legisinfo_id) {
+      return `https://openparliament.ca/bills/${bill.legisinfo_id}/`;
+    }
+    return null;
   };
 
   const formatDate = (dateString) => {
@@ -271,6 +284,39 @@ function Bills() {
           </div>
         </div>
 
+        {/* Filter Loading Notification */}
+        {filterLoading && (
+          <div style={{
+            padding: '15px',
+            backgroundColor: '#e3f2fd',
+            border: '1px solid #90caf9',
+            borderRadius: '6px',
+            marginBottom: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            color: '#1565c0'
+          }}>
+            <div style={{
+              width: '20px',
+              height: '20px',
+              border: '2px solid #90caf9',
+              borderTop: '2px solid #1565c0',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite'
+            }}></div>
+            <span>
+              {hasVotesFilter ? 'Filtering bills with votes...' : 'Applying filters...'}
+            </span>
+            <style>{`
+              @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+            `}</style>
+          </div>
+        )}
+
         {/* Results Summary */}
         <div style={{ 
           fontSize: '14px', 
@@ -382,6 +428,48 @@ function Bills() {
                 <strong>Session:</strong> {bill.session}
               </span>
             </div>
+
+            {/* LEGISinfo Link */}
+            {bill.legisinfo_id && (
+              <div style={{
+                marginTop: '12px',
+                paddingTop: '12px',
+                borderTop: '1px solid #e9ecef'
+              }}>
+                <a
+                  href={`https://www.parl.ca/legisinfo/en/bill/${bill.session}/${bill.number.toLowerCase()}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    color: '#007bff',
+                    textDecoration: 'none',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    padding: '4px 8px',
+                    backgroundColor: '#f8f9fa',
+                    borderRadius: '4px',
+                    border: '1px solid #dee2e6',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = '#e3f2fd';
+                    e.target.style.borderColor = '#90caf9';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = '#f8f9fa';
+                    e.target.style.borderColor = '#dee2e6';
+                  }}
+                >
+                  <span>🏛️</span>
+                  Official Bill Details
+                  <span style={{ fontSize: '10px' }}>↗</span>
+                </a>
+              </div>
+            )}
           </div>
         ))}
       </div>

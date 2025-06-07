@@ -29,11 +29,13 @@ VOTE_DETAILS_CACHE_DIR = os.path.join(CACHE_DIR, 'vote_details')
 VOTE_CACHE_INDEX_FILE = os.path.join(CACHE_DIR, 'vote_cache_index.json')
 BILLS_CACHE_FILE = os.path.join(CACHE_DIR, 'bills.json')
 BILLS_WITH_VOTES_INDEX_FILE = os.path.join(CACHE_DIR, 'bills_with_votes_index.json')
+LEGISINFO_CACHE_DIR = os.path.join(CACHE_DIR, 'legisinfo')
 
 # Ensure cache directories exist
 os.makedirs(CACHE_DIR, exist_ok=True)
 os.makedirs(MP_VOTES_CACHE_DIR, exist_ok=True)
 os.makedirs(VOTE_DETAILS_CACHE_DIR, exist_ok=True)
+os.makedirs(LEGISINFO_CACHE_DIR, exist_ok=True)
 
 # In-memory cache for fast access (loaded from files)
 cache = {
@@ -458,6 +460,76 @@ def build_bills_with_votes_index():
     except Exception as e:
         print(f"[{datetime.now()}] Error building bills with votes index: {e}")
         return set()
+
+def get_legisinfo_cache_filename(session, bill_number):
+    """Get cache filename for LEGISinfo data"""
+    safe_bill_number = bill_number.replace('/', '_').replace('-', '_')
+    return os.path.join(LEGISINFO_CACHE_DIR, f'{session}_{safe_bill_number}.json')
+
+def fetch_legisinfo_data(session, bill_number):
+    """Fetch bill details from LEGISinfo API"""
+    try:
+        # Check cache first
+        cache_file = get_legisinfo_cache_filename(session, bill_number)
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, 'r') as f:
+                    cached_data = json.load(f)
+                # Check if cache is less than 24 hours old
+                if time.time() - cached_data.get('cached_at', 0) < 86400:
+                    print(f"[{datetime.now()}] Serving LEGISinfo data for {session}/{bill_number} from cache")
+                    return cached_data.get('data')
+            except Exception as e:
+                print(f"[{datetime.now()}] Error reading LEGISinfo cache for {session}/{bill_number}: {e}")
+        
+        # Fetch from LEGISinfo API
+        url = f"https://www.parl.ca/LegisInfo/en/bill/{session}/{bill_number.lower()}/json"
+        print(f"[{datetime.now()}] Fetching LEGISinfo data from: {url}")
+        
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        legis_data = response.json()
+        
+        # Cache the response
+        cache_data = {
+            'data': legis_data,
+            'cached_at': time.time(),
+            'session': session,
+            'bill_number': bill_number,
+            'url': url
+        }
+        
+        try:
+            with open(cache_file, 'w') as f:
+                json.dump(cache_data, f)
+            print(f"[{datetime.now()}] Cached LEGISinfo data for {session}/{bill_number}")
+        except Exception as e:
+            print(f"[{datetime.now()}] Error caching LEGISinfo data: {e}")
+        
+        return legis_data
+        
+    except Exception as e:
+        print(f"[{datetime.now()}] Error fetching LEGISinfo data for {session}/{bill_number}: {e}")
+        return None
+
+def enrich_bill_with_legisinfo(bill):
+    """Enrich bill data with LEGISinfo details"""
+    if not bill.get('session') or not bill.get('number'):
+        return bill
+    
+    legis_data = fetch_legisinfo_data(bill['session'], bill['number'])
+    if legis_data:
+        # Add relevant LEGISinfo fields to the bill
+        enriched_bill = bill.copy()
+        enriched_bill['legis_summary'] = legis_data.get('ShortLegislativeSummaryEn')
+        enriched_bill['legis_status'] = legis_data.get('StatusNameEn')
+        enriched_bill['legis_sponsor'] = legis_data.get('SponsorPersonName')
+        enriched_bill['legis_sponsor_title'] = legis_data.get('SponsorAffiliationTitle')
+        enriched_bill['royal_assent_date'] = legis_data.get('ReceivedRoyalAssentDateTime')
+        enriched_bill['legis_url'] = f"https://www.parl.ca/legisinfo/en/bill/{bill['session']}/{bill['number'].lower()}"
+        return enriched_bill
+    
+    return bill
 
 def update_bills_cache():
     """Update the bills cache"""
@@ -1326,6 +1398,13 @@ def get_bill(bill_path):
         for bill in cache['bills']['data']:
             if bill.get('session') == session and bill.get('number') == number:
                 print(f"[{datetime.now()}] Serving bill {bill_path} from cache")
+                
+                # Check if we should enrich with LEGISinfo data
+                enrich = request.args.get('enrich', 'false').lower() == 'true'
+                if enrich:
+                    enriched_bill = enrich_bill_with_legisinfo(bill)
+                    return jsonify(enriched_bill)
+                
                 return jsonify(bill)
         
         # Bill not found

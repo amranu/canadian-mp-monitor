@@ -18,7 +18,7 @@ function BillDetail() {
   const loadBill = async () => {
     try {
       setLoading(true);
-      const data = await parliamentApi.getBill(session, number);
+      const data = await parliamentApi.getBill(session, number, true); // Enable enrichment
       setBill(data);
     } catch (error) {
       console.error('Error loading bill:', error);
@@ -207,14 +207,92 @@ function BillDetail() {
             </p>
           </div>
 
-          {bill.legisinfo_id && (
+          {bill.legis_status && (
             <div>
-              <h4 style={{ margin: '0 0 8px 0', color: '#495057' }}>LEGISinfo ID</h4>
-              <p style={{ margin: '0', fontSize: '16px', fontWeight: '500' }}>{bill.legisinfo_id}</p>
+              <h4 style={{ margin: '0 0 8px 0', color: '#495057' }}>Legislative Status</h4>
+              <p style={{ margin: '0', fontSize: '16px', fontWeight: '500' }}>{bill.legis_status}</p>
+            </div>
+          )}
+
+          {bill.legis_sponsor && (
+            <div>
+              <h4 style={{ margin: '0 0 8px 0', color: '#495057' }}>Sponsor</h4>
+              <p style={{ margin: '0', fontSize: '16px', fontWeight: '500' }}>{bill.legis_sponsor}</p>
+              {bill.legis_sponsor_title && (
+                <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#6c757d' }}>
+                  {bill.legis_sponsor_title}
+                </p>
+              )}
+            </div>
+          )}
+
+          {bill.royal_assent_date && (
+            <div>
+              <h4 style={{ margin: '0 0 8px 0', color: '#495057' }}>Royal Assent</h4>
+              <p style={{ margin: '0', fontSize: '16px', fontWeight: '500' }}>{formatDate(bill.royal_assent_date)}</p>
             </div>
           )}
         </div>
       </div>
+
+      {/* Bill Summary Section */}
+      {bill.legis_summary && (
+        <div style={{
+          backgroundColor: 'white',
+          padding: '25px',
+          borderRadius: '8px',
+          border: '1px solid #ddd',
+          marginBottom: '30px',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+        }}>
+          <h2 style={{ margin: '0 0 20px 0', color: '#495057' }}>
+            Legislative Summary
+          </h2>
+          <div style={{
+            fontSize: '16px',
+            lineHeight: '1.6',
+            color: '#333'
+          }}>
+            {bill.legis_summary}
+          </div>
+          
+          {bill.legis_url && (
+            <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #e9ecef' }}>
+              <a
+                href={bill.legis_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  color: '#007bff',
+                  textDecoration: 'none',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  padding: '8px 16px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '6px',
+                  border: '1px solid #dee2e6',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = '#e3f2fd';
+                  e.target.style.borderColor = '#90caf9';
+                }}
+                onMouseLeave={(e) => {
+                  e.target.style.backgroundColor = '#f8f9fa';
+                  e.target.style.borderColor = '#dee2e6';
+                }}
+              >
+                <span>🏛️</span>
+                View Full Details on LEGISinfo
+                <span style={{ fontSize: '12px' }}>↗</span>
+              </a>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Related Votes Section */}
       <div style={{

@@ -237,9 +237,9 @@ export const parliamentApi = {
     return data;
   },
 
-  async getBill(session, number) {
+  async getBill(session, number, enrich = false) {
     const billPath = `${session}/${number}`;
-    const cacheKey = `bill-${billPath}`;
+    const cacheKey = `bill-${billPath}${enrich ? '-enriched' : ''}`;
     
     // Check cache first
     const cachedData = cache.get(cacheKey);
@@ -247,7 +247,7 @@ export const parliamentApi = {
       return cachedData;
     }
     
-    const url = `${API_BASE}/bills/${billPath}`;
+    const url = `${API_BASE}/bills/${billPath}${enrich ? '?enrich=true' : ''}`;
     console.log('Fetching bill from:', url);
     
     const response = await fetch(url, { headers });
