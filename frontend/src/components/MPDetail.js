@@ -15,10 +15,94 @@ function MPDetail() {
   const [hasMoreVotes, setHasMoreVotes] = useState(true);
   const [votesOffset, setVotesOffset] = useState(0);
   const [loadingFromApi, setLoadingFromApi] = useState(false);
+  const [activeTab, setActiveTab] = useState('votes');
 
   useEffect(() => {
     loadMP();
   }, [mpSlug]);
+
+  const calculateStatistics = () => {
+    if (!votes || votes.length === 0 || !hasSpecificVotes) {
+      return null;
+    }
+
+    const mpParty = mp.current_party?.short_name?.en || mp.memberships?.[0]?.party?.short_name?.en;
+    const votesWithBallot = votes.filter(vote => vote.mp_ballot);
+    
+    if (votesWithBallot.length === 0) {
+      return null;
+    }
+
+    // Basic statistics
+    const totalVotes = votesWithBallot.length;
+    const yesVotes = votesWithBallot.filter(v => v.mp_ballot === 'Yes').length;
+    const noVotes = votesWithBallot.filter(v => v.mp_ballot === 'No').length;
+    const abstainedVotes = votesWithBallot.filter(v => v.mp_ballot === 'Paired').length;
+    
+    // Participation rate
+    const participationRate = ((yesVotes + noVotes) / totalVotes) * 100;
+    
+    // Success rate - votes where MP was on winning side
+    const successfulVotes = votesWithBallot.filter(vote => {
+      const mpVotedYes = vote.mp_ballot === 'Yes';
+      const billPassed = vote.result === 'Passed';
+      return (mpVotedYes && billPassed) || (!mpVotedYes && !billPassed);
+    }).length;
+    const successRate = (successfulVotes / votesWithBallot.length) * 100;
+    
+    // Bill types analysis
+    const billVotes = votesWithBallot.filter(vote => vote.bill_url !== null);
+    const motionVotes = votesWithBallot.filter(vote => vote.bill_url === null);
+    const governmentBills = billVotes.filter(vote => 
+      vote.bill_url && vote.bill_url.includes('/C-')
+    );
+    const privateBills = billVotes.filter(vote => 
+      vote.bill_url && !vote.bill_url.includes('/C-')
+    );
+    
+    // Recent activity (last 20 votes)
+    const recentVotes = votesWithBallot.slice(0, Math.min(20, votesWithBallot.length));
+    const recentParticipation = recentVotes.filter(v => 
+      v.mp_ballot === 'Yes' || v.mp_ballot === 'No'
+    ).length;
+    const recentParticipationRate = (recentParticipation / recentVotes.length) * 100;
+
+    // Vote distribution by result
+    const votesOnPassedBills = votesWithBallot.filter(v => v.result === 'Passed');
+    const votesOnFailedBills = votesWithBallot.filter(v => v.result === 'Failed');
+    const yesOnPassedBills = votesOnPassedBills.filter(v => v.mp_ballot === 'Yes').length;
+    const noOnFailedBills = votesOnFailedBills.filter(v => v.mp_ballot === 'No').length;
+    
+    return {
+      totalVotes,
+      participationRate,
+      successRate,
+      voteBreakdown: {
+        yes: yesVotes,
+        no: noVotes,
+        abstained: abstainedVotes,
+        yesPercentage: (yesVotes / totalVotes) * 100,
+        noPercentage: (noVotes / totalVotes) * 100
+      },
+      billAnalysis: {
+        totalBills: billVotes.length,
+        totalMotions: motionVotes.length,
+        governmentBills: governmentBills.length,
+        privateBills: privateBills.length
+      },
+      effectiveness: {
+        yesOnPassedBills,
+        noOnFailedBills,
+        supportedWinningCauses: yesOnPassedBills,
+        opposedLosingCauses: noOnFailedBills
+      },
+      recentActivity: {
+        recentVotesCount: recentVotes.length,
+        recentParticipationRate
+      },
+      mpParty
+    };
+  };
 
   const loadMP = async () => {
     try {
@@ -169,6 +253,227 @@ function MPDetail() {
     }
   };
 
+  const renderStatistics = () => {
+    const stats = calculateStatistics();
+    
+    if (!stats) {
+      return (
+        <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
+          <h3>Statistics Not Available</h3>
+          <p>Statistics will be available once we have voting data for {mp.name}.</p>
+          {!hasSpecificVotes && (
+            <p style={{ fontSize: '14px', marginTop: '10px' }}>
+              Voting records are still being loaded in the background.
+            </p>
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ padding: '20px 0' }}>
+        {/* Overview Cards */}
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+          gap: '20px',
+          marginBottom: '30px'
+        }}>
+          <div style={{
+            backgroundColor: '#f8f9fa',
+            padding: '20px',
+            borderRadius: '8px',
+            border: '1px solid #dee2e6',
+            textAlign: 'center'
+          }}>
+            <h3 style={{ margin: '0 0 10px 0', color: '#495057' }}>Total Votes</h3>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#007bff' }}>
+              {stats.totalVotes}
+            </div>
+            <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
+              Votes with recorded position
+            </div>
+          </div>
+
+          <div style={{
+            backgroundColor: '#f8f9fa',
+            padding: '20px',
+            borderRadius: '8px',
+            border: '1px solid #dee2e6',
+            textAlign: 'center'
+          }}>
+            <h3 style={{ margin: '0 0 10px 0', color: '#495057' }}>Participation Rate</h3>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#28a745' }}>
+              {Math.round(stats.participationRate)}%
+            </div>
+            <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
+              Voted yes or no (vs abstained)
+            </div>
+          </div>
+
+          <div style={{
+            backgroundColor: '#f8f9fa',
+            padding: '20px',
+            borderRadius: '8px',
+            border: '1px solid #dee2e6',
+            textAlign: 'center'
+          }}>
+            <h3 style={{ margin: '0 0 10px 0', color: '#495057' }}>Success Rate</h3>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#17a2b8' }}>
+              {Math.round(stats.successRate)}%
+            </div>
+            <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
+              Voted on winning side
+            </div>
+          </div>
+
+          <div style={{
+            backgroundColor: '#f8f9fa',
+            padding: '20px',
+            borderRadius: '8px',
+            border: '1px solid #dee2e6',
+            textAlign: 'center'
+          }}>
+            <h3 style={{ margin: '0 0 10px 0', color: '#495057' }}>Recent Activity</h3>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#6610f2' }}>
+              {Math.round(stats.recentActivity.recentParticipationRate)}%
+            </div>
+            <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
+              Last {stats.recentActivity.recentVotesCount} votes
+            </div>
+          </div>
+        </div>
+
+        {/* Detailed Breakdowns */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}>
+          {/* Vote Breakdown */}
+          <div style={{
+            backgroundColor: 'white',
+            padding: '25px',
+            borderRadius: '8px',
+            border: '1px solid #dee2e6',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+          }}>
+            <h3 style={{ margin: '0 0 20px 0', color: '#495057' }}>Vote Distribution</h3>
+            
+            <div style={{ marginBottom: '15px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                <span style={{ color: '#28a745', fontWeight: '600' }}>✓ Yes Votes</span>
+                <span style={{ fontWeight: 'bold' }}>{stats.voteBreakdown.yes} ({Math.round(stats.voteBreakdown.yesPercentage)}%)</span>
+              </div>
+              <div style={{
+                height: '8px',
+                backgroundColor: '#e9ecef',
+                borderRadius: '4px',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  height: '100%',
+                  width: `${stats.voteBreakdown.yesPercentage}%`,
+                  backgroundColor: '#28a745'
+                }}></div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '15px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                <span style={{ color: '#dc3545', fontWeight: '600' }}>✗ No Votes</span>
+                <span style={{ fontWeight: 'bold' }}>{stats.voteBreakdown.no} ({Math.round(stats.voteBreakdown.noPercentage)}%)</span>
+              </div>
+              <div style={{
+                height: '8px',
+                backgroundColor: '#e9ecef',
+                borderRadius: '4px',
+                overflow: 'hidden'
+              }}>
+                <div style={{
+                  height: '100%',
+                  width: `${stats.voteBreakdown.noPercentage}%`,
+                  backgroundColor: '#dc3545'
+                }}></div>
+              </div>
+            </div>
+
+            {stats.voteBreakdown.abstained > 0 && (
+              <div style={{ marginBottom: '15px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                  <span style={{ color: '#6c757d', fontWeight: '600' }}>⚖️ Abstained</span>
+                  <span style={{ fontWeight: 'bold' }}>{stats.voteBreakdown.abstained}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Bill Analysis */}
+          <div style={{
+            backgroundColor: 'white',
+            padding: '25px',
+            borderRadius: '8px',
+            border: '1px solid #dee2e6',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+          }}>
+            <h3 style={{ margin: '0 0 20px 0', color: '#495057' }}>Legislative Focus</h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#495057' }}>📜 Bills</span>
+                <span style={{ fontWeight: 'bold', color: '#007bff' }}>{stats.billAnalysis.totalBills}</span>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: '15px' }}>
+                <span style={{ color: '#6c757d', fontSize: '14px' }}>Government Bills (C-*)</span>
+                <span style={{ fontWeight: '600' }}>{stats.billAnalysis.governmentBills}</span>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', paddingLeft: '15px' }}>
+                <span style={{ color: '#6c757d', fontSize: '14px' }}>Private Bills</span>
+                <span style={{ fontWeight: '600' }}>{stats.billAnalysis.privateBills}</span>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#495057' }}>🗳️ Motions</span>
+                <span style={{ fontWeight: 'bold', color: '#6610f2' }}>{stats.billAnalysis.totalMotions}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Effectiveness Analysis */}
+          <div style={{
+            backgroundColor: 'white',
+            padding: '25px',
+            borderRadius: '8px',
+            border: '1px solid #dee2e6',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+          }}>
+            <h3 style={{ margin: '0 0 20px 0', color: '#495057' }}>Legislative Effectiveness</h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#28a745' }}>✓ Supported Winning Causes</span>
+                <span style={{ fontWeight: 'bold', color: '#28a745' }}>{stats.effectiveness.supportedWinningCauses}</span>
+              </div>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#dc3545' }}>✗ Opposed Losing Causes</span>
+                <span style={{ fontWeight: 'bold', color: '#dc3545' }}>{stats.effectiveness.opposedLosingCauses}</span>
+              </div>
+              
+              <div style={{ 
+                marginTop: '10px', 
+                padding: '10px', 
+                backgroundColor: '#f8f9fa', 
+                borderRadius: '4px',
+                fontSize: '14px',
+                color: '#495057'
+              }}>
+                <strong>Effectiveness Score:</strong> {Math.round(stats.successRate)}% of votes were on the winning side
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   if (loading || !mp) {
     return (
@@ -234,23 +539,68 @@ function MPDetail() {
         </div>
       </div>
 
-      <div>
-        <h2>{mp.name}'s Recent Voting Record</h2>
-        
-        
-        <p style={{ color: '#666', marginBottom: '20px' }}>
-          {hasSpecificVotes ? (
-            <>
-              Showing how {mp.name} voted on recent parliamentary matters.
-              <span style={{ color: '#0969da' }}> Click any vote to see detailed party statistics and all MP votes.</span>
-            </>
-          ) : (
-            <>
-              Recent parliamentary votes. 
-              {votes.length > 0 && <span style={{ color: '#0969da' }}> Click any vote to see detailed party statistics and all MP votes.</span>}
-            </>
-          )}
-        </p>
+      {/* Tab Navigation */}
+      <div style={{ 
+        borderBottom: '2px solid #dee2e6',
+        marginBottom: '20px',
+        marginTop: '30px'
+      }}>
+        <div style={{ display: 'flex', gap: '0' }}>
+          <button
+            onClick={() => setActiveTab('votes')}
+            style={{
+              padding: '12px 24px',
+              border: 'none',
+              backgroundColor: activeTab === 'votes' ? '#007bff' : 'transparent',
+              color: activeTab === 'votes' ? 'white' : '#666',
+              borderRadius: '8px 8px 0 0',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: activeTab === 'votes' ? 'bold' : 'normal',
+              borderBottom: activeTab === 'votes' ? '2px solid #007bff' : '2px solid transparent',
+              marginBottom: '-2px'
+            }}
+          >
+            📊 Voting Record
+          </button>
+          <button
+            onClick={() => setActiveTab('statistics')}
+            style={{
+              padding: '12px 24px',
+              border: 'none',
+              backgroundColor: activeTab === 'statistics' ? '#007bff' : 'transparent',
+              color: activeTab === 'statistics' ? 'white' : '#666',
+              borderRadius: '8px 8px 0 0',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: activeTab === 'statistics' ? 'bold' : 'normal',
+              borderBottom: activeTab === 'statistics' ? '2px solid #007bff' : '2px solid transparent',
+              marginBottom: '-2px'
+            }}
+          >
+            📈 Statistics
+          </button>
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'votes' && (
+        <div>
+          <h2>{mp.name}'s Recent Voting Record</h2>
+          
+          <p style={{ color: '#666', marginBottom: '20px' }}>
+            {hasSpecificVotes ? (
+              <>
+                Showing how {mp.name} voted on recent parliamentary matters.
+                <span style={{ color: '#0969da' }}> Click any vote to see detailed party statistics and all MP votes.</span>
+              </>
+            ) : (
+              <>
+                Recent parliamentary votes. 
+                {votes.length > 0 && <span style={{ color: '#0969da' }}> Click any vote to see detailed party statistics and all MP votes.</span>}
+              </>
+            )}
+          </p>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {votes.map((vote) => {
@@ -466,7 +816,16 @@ function MPDetail() {
             </p>
           </div>
         )}
-      </div>
+        </div>
+      )}
+
+      {/* Statistics Tab */}
+      {activeTab === 'statistics' && (
+        <div>
+          <h2>{mp.name}'s Parliamentary Statistics</h2>
+          {renderStatistics()}
+        </div>
+      )}
     </div>
   );
 }
