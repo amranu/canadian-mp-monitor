@@ -52,6 +52,8 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./ssl/fullchain.pem:/etc/ssl/certs/fullchain.pem:ro
+      - ./ssl/privkey.pem:/etc/ssl/private/privkey.pem:ro
       - certbot_conf:/etc/letsencrypt
       - certbot_www:/var/www/certbot
     networks:

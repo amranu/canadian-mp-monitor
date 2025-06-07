@@ -1,0 +1,48 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+DEPLOYMENT.md
+CLAUDE.md
+
+# Ansible
+ansible/
+
+# Development
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# Dependencies
+node_modules/
+backend/__pycache__/
+backend/*.pyc
+backend/.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+frontend/build/
+frontend/dist/
+
+# Logs
+*.log
+logs/
+
+# Cache (exclude from image, but not from volume mount)
+backend/cache/
+
+# Deployment
+deploy.sh
