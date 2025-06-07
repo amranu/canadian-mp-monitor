@@ -27,6 +27,7 @@ MP_VOTES_CACHE_DIR = os.path.join(CACHE_DIR, 'mp_votes')
 HISTORICAL_MPS_FILE = os.path.join(CACHE_DIR, 'historical_mps.json')
 VOTE_DETAILS_CACHE_DIR = os.path.join(CACHE_DIR, 'vote_details')
 VOTE_CACHE_INDEX_FILE = os.path.join(CACHE_DIR, 'vote_cache_index.json')
+BILLS_CACHE_FILE = os.path.join(CACHE_DIR, 'bills.json')
 
 # Ensure cache directories exist
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -37,6 +38,7 @@ os.makedirs(VOTE_DETAILS_CACHE_DIR, exist_ok=True)
 cache = {
     'politicians': {'data': None, 'expires': 0, 'loading': False},
     'votes': {'data': None, 'expires': 0, 'loading': False},
+    'bills': {'data': None, 'expires': 0, 'loading': False},
     'mp_votes': {},  # {mp_slug: {'data': [...], 'expires': timestamp, 'loading': False}}
     'mp_details': {},  # Cache for individual MP details fetched from API
     'historical_mps': {'data': {}, 'loaded': False}  # Historical MP data from previous sessions
@@ -46,15 +48,18 @@ cache = {
 def hello():
     politicians_status = 'cached' if is_cache_valid('politicians') else 'expired/empty'
     votes_status = 'cached' if is_cache_valid('votes') else 'expired/empty'
+    bills_status = 'cached' if is_cache_valid('bills') else 'expired/empty'
     
     politicians_count = len(cache['politicians']['data']) if cache['politicians']['data'] else 0
     votes_count = len(cache['votes']['data']) if cache['votes']['data'] else 0
+    bills_count = len(cache['bills']['data']) if cache['bills']['data'] else 0
     mp_votes_count = len([k for k, v in cache['mp_votes'].items() if v.get('data')])
     mp_votes_loading = len([k for k, v in cache['mp_votes'].items() if v.get('loading', False)])
     historical_mps_count = len(cache['historical_mps']['data'])
     
     politicians_expires = datetime.fromtimestamp(cache['politicians']['expires']).isoformat() if cache['politicians']['expires'] > 0 else 'N/A'
     votes_expires = datetime.fromtimestamp(cache['votes']['expires']).isoformat() if cache['votes']['expires'] > 0 else 'N/A'
+    bills_expires = datetime.fromtimestamp(cache['bills']['expires']).isoformat() if cache['bills']['expires'] > 0 else 'N/A'
     
     return jsonify({
         'message': 'Canadian MP Monitor Backend',
@@ -68,6 +73,11 @@ def hello():
                 'status': votes_status,
                 'count': votes_count,
                 'expires': votes_expires
+            },
+            'bills': {
+                'status': bills_status,
+                'count': bills_count,
+                'expires': bills_expires
             },
             'mp_votes': {
                 'cached_mps': mp_votes_count,
@@ -272,6 +282,16 @@ def load_persistent_cache():
         }
         print(f"[{datetime.now()}] Loaded {len(cache['votes']['data'])} votes from cache")
     
+    # Load bills
+    bills_data = load_cache_from_file(BILLS_CACHE_FILE)
+    if bills_data:
+        cache['bills'] = {
+            'data': bills_data.get('data', []),
+            'expires': bills_data.get('expires', 0),
+            'loading': False
+        }
+        print(f"[{datetime.now()}] Loaded {len(cache['bills']['data'])} bills from cache")
+    
     # Only count MP votes cache files, don't load them into memory at startup
     mp_cache_count = 0
     if os.path.exists(MP_VOTES_CACHE_DIR):
@@ -366,6 +386,64 @@ def update_politicians_cache():
     except Exception as e:
         cache['politicians']['loading'] = False
         print(f"[{datetime.now()}] Error updating politicians cache: {e}")
+        return False
+
+def load_all_bills():
+    """Load all bills from the API"""
+    all_bills = []
+    offset = 0
+    limit = 100
+    
+    while True:
+        response = requests.get(
+            f'{PARLIAMENT_API_BASE}/bills/',
+            params={'limit': limit, 'offset': offset},
+            headers=HEADERS
+        )
+        response.raise_for_status()
+        data = response.json()
+        
+        all_bills.extend(data['objects'])
+        
+        if not data['pagination']['next_url']:
+            break
+            
+        offset += limit
+        
+        # Safety break to avoid infinite loops
+        if offset > 5000:
+            break
+    
+    return all_bills
+
+def update_bills_cache():
+    """Update the bills cache"""
+    try:
+        if cache['bills']['loading']:
+            return False
+            
+        cache['bills']['loading'] = True
+        print(f"[{datetime.now()}] Loading bills from API...")
+        
+        all_bills = load_all_bills()
+        
+        cache['bills']['data'] = all_bills
+        cache['bills']['expires'] = time.time() + CACHE_DURATION
+        cache['bills']['loading'] = False
+        
+        # Save to file
+        save_cache_to_file({
+            'data': all_bills,
+            'expires': cache['bills']['expires'],
+            'updated': datetime.now().isoformat()
+        }, BILLS_CACHE_FILE)
+        
+        print(f"[{datetime.now()}] Cached {len(all_bills)} bills")
+        return True
+        
+    except Exception as e:
+        cache['bills']['loading'] = False
+        print(f"[{datetime.now()}] Error updating bills cache: {e}")
         return False
 
 @app.route('/api/politicians')
@@ -1059,6 +1137,93 @@ def get_votes():
                 'previous_url': prev_url
             }
         })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/bills')
+def get_bills():
+    limit = int(request.args.get('limit', 20))
+    offset = int(request.args.get('offset', 0))
+    session = request.args.get('session')  # Optional session filter
+    sponsor = request.args.get('sponsor')  # Optional sponsor filter
+    
+    try:
+        # Check if cache is valid
+        if not is_cache_valid('bills'):
+            success = update_bills_cache()
+            if not success and cache['bills']['data'] is None:
+                return jsonify({'error': 'Failed to load bills data'}), 500
+        
+        all_bills = cache['bills']['data']
+        
+        # Apply filters
+        filtered_bills = all_bills
+        if session:
+            filtered_bills = [bill for bill in filtered_bills if bill.get('session') == session]
+        
+        if sponsor:
+            # Filter by sponsor MP slug (extract from URL)
+            sponsor_url = f'/politicians/{sponsor}/'
+            filtered_bills = [bill for bill in filtered_bills 
+                            if bill.get('sponsor_politician_url') == sponsor_url]
+        
+        # Apply pagination
+        paginated_bills = filtered_bills[offset:offset + limit]
+        
+        # Build response in same format as original API
+        has_next = (offset + limit) < len(filtered_bills)
+        next_url = f"/bills/?limit={limit}&offset={offset + limit}" if has_next else None
+        prev_url = f"/bills/?limit={limit}&offset={max(0, offset - limit)}" if offset > 0 else None
+        
+        return jsonify({
+            'objects': paginated_bills,
+            'pagination': {
+                'offset': offset,
+                'limit': limit,
+                'next_url': next_url,
+                'previous_url': prev_url
+            },
+            'total_count': len(filtered_bills),
+            'filters_applied': {
+                'session': session,
+                'sponsor': sponsor
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/bills/<path:bill_path>')
+def get_bill(bill_path):
+    """Get individual bill details"""
+    try:
+        # Extract session and number from path like "44-1/C-1" 
+        path_parts = bill_path.split('/')
+        if len(path_parts) != 2:
+            return jsonify({'error': 'Invalid bill path format. Expected: session/number'}), 400
+            
+        session, number = path_parts
+        
+        # Check if bills cache is valid
+        if not is_cache_valid('bills'):
+            success = update_bills_cache()
+            if not success and cache['bills']['data'] is None:
+                return jsonify({'error': 'Failed to load bills data'}), 500
+        
+        # Find the bill in our cached data
+        for bill in cache['bills']['data']:
+            if bill.get('session') == session and bill.get('number') == number:
+                print(f"[{datetime.now()}] Serving bill {bill_path} from cache")
+                return jsonify(bill)
+        
+        # Bill not found
+        print(f"[{datetime.now()}] Bill {bill_path} not found in cache")
+        return jsonify({
+            'error': 'Bill not found',
+            'message': 'This bill is not available in our cached data.',
+            'bill_path': bill_path
+        }), 404
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500

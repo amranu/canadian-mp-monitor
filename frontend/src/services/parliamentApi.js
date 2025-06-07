@@ -186,5 +186,99 @@ export const parliamentApi = {
     }
     
     return response.json();
+  },
+
+  async getBills(limit = 20, offset = 0, filters = {}) {
+    const cacheKey = `bills-${limit}-${offset}-${JSON.stringify(filters)}`;
+    
+    // Check cache first
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+    
+    // Build query parameters
+    const params = new URLSearchParams({
+      limit: limit.toString(),
+      offset: offset.toString()
+    });
+    
+    if (filters.session) {
+      params.append('session', filters.session);
+    }
+    
+    if (filters.sponsor) {
+      params.append('sponsor', filters.sponsor);
+    }
+    
+    const url = `${API_BASE}/bills?${params.toString()}`;
+    console.log('Fetching bills from:', url);
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Bills API response:', data);
+    
+    // Cache the response
+    cache.set(cacheKey, data);
+    
+    return data;
+  },
+
+  async getBill(session, number) {
+    const billPath = `${session}/${number}`;
+    const cacheKey = `bill-${billPath}`;
+    
+    // Check cache first
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+    
+    const url = `${API_BASE}/bills/${billPath}`;
+    console.log('Fetching bill from:', url);
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Bill details loaded:', data);
+    
+    // Cache the response
+    cache.set(cacheKey, data);
+    
+    return data;
+  },
+
+  async searchBills(query, filters = {}) {
+    // Get all bills with filters and search locally
+    // This could be optimized with backend search in the future
+    const data = await this.getBills(1000, 0, filters);
+    
+    if (!query) {
+      return data;
+    }
+    
+    const filteredBills = data.objects.filter(bill => {
+      const searchText = query.toLowerCase();
+      return (
+        bill.name?.en?.toLowerCase().includes(searchText) ||
+        bill.name?.fr?.toLowerCase().includes(searchText) ||
+        bill.number?.toLowerCase().includes(searchText)
+      );
+    });
+    
+    return {
+      ...data,
+      objects: filteredBills,
+      total_count: filteredBills.length
+    };
   }
 };
