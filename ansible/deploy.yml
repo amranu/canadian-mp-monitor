@@ -163,6 +163,11 @@
       become_user: "{{ app_user }}"
       ignore_errors: yes
 
+    - name: Build all images first
+      shell: |
+        cd "{{ app_dir }}" && docker compose build
+      become_user: "{{ app_user }}"
+
     - name: Start nginx for initial SSL certificate
       shell: |
         cd "{{ app_dir }}" && docker compose up -d nginx
