@@ -1170,8 +1170,8 @@ def get_bills():
         
         # Sort bills by session (descending) and then by introduced date (descending)
         filtered_bills.sort(key=lambda x: (
-            x.get('session', ''), 
-            x.get('introduced', '')
+            x.get('session') or '', 
+            x.get('introduced') or ''
         ), reverse=True)
         
         # Apply pagination
