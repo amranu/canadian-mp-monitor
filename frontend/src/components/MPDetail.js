@@ -36,6 +36,15 @@ function MPDetail() {
     }
   }, [votes]);
 
+  // Load all votes when a specific session is selected
+  useEffect(() => {
+    if (selectedSession !== 'all' && selectedSession !== 'current' && mp && hasMoreVotes && !loadingMoreVotes) {
+      // When a specific session is selected, automatically load more votes to get complete session data
+      console.log(`Auto-loading more votes for Session ${selectedSession}`);
+      loadMoreVotes();
+    }
+  }, [selectedSession, hasMoreVotes, loadingMoreVotes]);
+
   // Filter votes by selected session
   const getFilteredVotes = () => {
     if (!votes || votes.length === 0) return [];
@@ -757,6 +766,11 @@ function MPDetail() {
                 {selectedSession !== 'all' && ` from Session ${selectedSession}`}. 
                 {votes.length > 0 && <span style={{ color: '#0969da' }}> Click any vote to see detailed party statistics and all MP votes.</span>}
               </>
+            )}
+            {selectedSession !== 'all' && hasMoreVotes && loadingMoreVotes && (
+              <span style={{ color: '#007bff', fontStyle: 'italic' }}>
+                <br />Loading complete session data...
+              </span>
             )}
           </p>
         
