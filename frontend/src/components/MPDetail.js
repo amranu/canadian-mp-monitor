@@ -16,10 +16,32 @@ function MPDetail() {
   const [votesOffset, setVotesOffset] = useState(0);
   const [loadingFromApi, setLoadingFromApi] = useState(false);
   const [activeTab, setActiveTab] = useState('votes');
+  const [selectedSession, setSelectedSession] = useState('current');
+  const [availableSessions, setAvailableSessions] = useState([]);
 
   useEffect(() => {
     loadMP();
   }, [mpSlug]);
+
+  // Extract available sessions from votes and set current session as default
+  useEffect(() => {
+    if (votes && votes.length > 0) {
+      const sessions = [...new Set(votes.map(vote => vote.session))].sort().reverse();
+      setAvailableSessions(sessions);
+      
+      // Set current session as default if not already set
+      if (selectedSession === 'current' && sessions.length > 0) {
+        setSelectedSession(sessions[0]); // Most recent session first
+      }
+    }
+  }, [votes]);
+
+  // Filter votes by selected session
+  const getFilteredVotes = () => {
+    if (!votes || votes.length === 0) return [];
+    if (selectedSession === 'all') return votes;
+    return votes.filter(vote => vote.session === selectedSession);
+  };
 
   const calculateStatistics = () => {
     if (!votes || votes.length === 0 || !hasSpecificVotes) {
@@ -27,7 +49,8 @@ function MPDetail() {
     }
 
     const mpParty = mp.current_party?.short_name?.en || mp.memberships?.[0]?.party?.short_name?.en;
-    const votesWithBallot = votes.filter(vote => vote.mp_ballot);
+    const filteredVotes = getFilteredVotes();
+    const votesWithBallot = filteredVotes.filter(vote => vote.mp_ballot);
     
     if (votesWithBallot.length === 0) {
       return null;
@@ -670,24 +693,58 @@ function MPDetail() {
       {/* Tab Content */}
       {activeTab === 'votes' && (
         <div>
-          <h2>{mp.name}'s Recent Voting Record</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <h2 style={{ margin: 0 }}>{mp.name}'s Voting Record</h2>
+            
+            {/* Session Selector */}
+            {availableSessions.length > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <label style={{ fontSize: '14px', color: '#666', fontWeight: '500' }}>
+                  Parliamentary Session:
+                </label>
+                <select
+                  value={selectedSession}
+                  onChange={(e) => setSelectedSession(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    border: '1px solid #dee2e6',
+                    borderRadius: '4px',
+                    backgroundColor: 'white',
+                    fontSize: '14px',
+                    color: '#495057',
+                    cursor: 'pointer',
+                    outline: 'none'
+                  }}
+                >
+                  <option value="all">All Sessions</option>
+                  {availableSessions.map(session => (
+                    <option key={session} value={session}>
+                      Session {session}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
           
           <p style={{ color: '#666', marginBottom: '20px' }}>
             {hasSpecificVotes ? (
               <>
-                Showing how {mp.name} voted on recent parliamentary matters.
+                Showing how {mp.name} voted on parliamentary matters
+                {selectedSession !== 'all' && ` in Session ${selectedSession}`}.
                 <span style={{ color: '#0969da' }}> Click any vote to see detailed party statistics and all MP votes.</span>
               </>
             ) : (
               <>
-                Recent parliamentary votes. 
+                Recent parliamentary votes
+                {selectedSession !== 'all' && ` from Session ${selectedSession}`}. 
                 {votes.length > 0 && <span style={{ color: '#0969da' }}> Click any vote to see detailed party statistics and all MP votes.</span>}
               </>
             )}
           </p>
         
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {votes.map((vote) => {
+          {getFilteredVotes().map((vote) => {
             const isOppositionMotion = vote.description?.en?.toLowerCase().includes('opposition motion');
             const isBillVote = vote.bill_url !== null;
             const isCommitteeReport = vote.description?.en?.toLowerCase().includes('committee');
@@ -852,7 +909,7 @@ function MPDetail() {
         </div>
         
         {/* Load More Button */}
-        {hasMoreVotes && votes.length > 0 && (
+        {hasMoreVotes && getFilteredVotes().length > 0 && (
           <div style={{ textAlign: 'center', marginTop: '30px' }}>
             <button
               onClick={loadMoreVotes}
@@ -887,16 +944,16 @@ function MPDetail() {
               color: '#666', 
               fontSize: '14px' 
             }}>
-              Showing {votes.length} votes{hasSpecificVotes ? ` with ${mp.name}'s positions` : ''}
+              Showing {getFilteredVotes().length} votes{hasSpecificVotes ? ` with ${mp.name}'s positions` : ''}{selectedSession !== 'all' ? ` from Session ${selectedSession}` : ''}
               {loadingFromApi && <span style={{ color: '#0969da' }}> (now loading from live data)</span>}
             </p>
           </div>
         )}
         
-        {!hasMoreVotes && votes.length > 20 && (
+        {!hasMoreVotes && getFilteredVotes().length > 20 && (
           <div style={{ textAlign: 'center', marginTop: '30px' }}>
             <p style={{ color: '#666', fontSize: '14px' }}>
-              All available votes loaded ({votes.length} total)
+              All available votes loaded ({getFilteredVotes().length} total{selectedSession !== 'all' ? ` for Session ${selectedSession}` : ''})
             </p>
           </div>
         )}
