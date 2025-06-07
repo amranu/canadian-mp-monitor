@@ -145,12 +145,42 @@ function VoteDetails() {
     );
   }
 
-  const sortedParties = voteDetails.party_stats ? 
-    Object.entries(voteDetails.party_stats).sort((a, b) => b[1].total - a[1].total) : 
-    [];
+  // Handle both enriched (party_stats) and raw API (party_votes) formats
+  let sortedParties = [];
+  
+  if (voteDetails.party_stats) {
+    // Enriched cache format
+    sortedParties = Object.entries(voteDetails.party_stats).sort((a, b) => b[1].total - a[1].total);
+  } else if (voteDetails.party_votes) {
+    // Raw API format - convert to party_stats format
+    const partyStatsMap = {};
+    
+    voteDetails.party_votes.forEach(partyVote => {
+      const partyName = partyVote.party.short_name?.en || 'Unknown';
+      if (!partyStatsMap[partyName]) {
+        partyStatsMap[partyName] = {
+          total: 0,
+          yes: 0,
+          no: 0,
+          paired: 0,
+          absent: 0,
+          other: 0
+        };
+      }
+      
+      partyStatsMap[partyName].total += partyVote.vote_count;
+      partyStatsMap[partyName].yes += partyVote.yea_count || 0;
+      partyStatsMap[partyName].no += partyVote.nay_count || 0;
+      partyStatsMap[partyName].paired += partyVote.paired_count || 0;
+      // Note: raw API doesn't seem to have absent/other counts
+    });
+    
+    sortedParties = Object.entries(partyStatsMap).sort((a, b) => b[1].total - a[1].total);
+  }
     
   console.log('Current voteDetails:', voteDetails);
   console.log('voteDetails.party_stats:', voteDetails.party_stats);
+  console.log('voteDetails.party_votes:', voteDetails.party_votes);
   console.log('sortedParties length:', sortedParties.length);
   console.log('sortedParties:', sortedParties);
 
