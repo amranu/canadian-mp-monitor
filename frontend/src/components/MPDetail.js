@@ -73,10 +73,58 @@ function MPDetail() {
     const yesOnPassedBills = votesOnPassedBills.filter(v => v.mp_ballot === 'Yes').length;
     const noOnFailedBills = votesOnFailedBills.filter(v => v.mp_ballot === 'No').length;
     
+    // Party line voting calculation (simplified heuristic)
+    // This estimates party alignment based on vote results and MP's party affiliation
+    let partyLineVotes = 0;
+    let totalPartyLineEligible = 0;
+    
+    votesWithBallot.forEach(vote => {
+      // Skip if we don't have clear yes/no vote
+      if (vote.mp_ballot !== 'Yes' && vote.mp_ballot !== 'No') return;
+      
+      totalPartyLineEligible++;
+      
+      // Heuristic: Assume government parties (Liberal) typically support bills that pass
+      // and opposition parties (Conservative, NDP, Bloc) often oppose
+      // This is a simplified approximation
+      const isGovernmentParty = mpParty === 'Liberal';
+      const votedYes = vote.mp_ballot === 'Yes';
+      const billPassed = vote.result === 'Passed';
+      
+      // Estimate if MP voted with their party's typical position
+      if (isGovernmentParty) {
+        // Government party typically supports bills, especially those that pass
+        if ((votedYes && billPassed) || (!votedYes && !billPassed)) {
+          partyLineVotes++;
+        }
+      } else {
+        // Opposition parties: more complex, but often oppose government bills
+        // If it's a close vote that passed, opposition likely opposed
+        // If it failed, opposition likely opposed it too
+        const voteMargin = vote.yea_total - vote.nay_total;
+        const isCloseVote = Math.abs(voteMargin) < 20;
+        
+        if (billPassed && !votedYes && isCloseVote) {
+          // Opposed a bill that barely passed (typical opposition behavior)
+          partyLineVotes++;
+        } else if (!billPassed && !votedYes) {
+          // Opposed a bill that failed
+          partyLineVotes++;
+        } else if (billPassed && votedYes && !isCloseVote) {
+          // Supported a bill that passed easily (bipartisan support)
+          partyLineVotes++;
+        }
+      }
+    });
+    
+    const partyLinePercentage = totalPartyLineEligible > 0 ? 
+      (partyLineVotes / totalPartyLineEligible) * 100 : 0;
+    
     return {
       totalVotes,
       participationRate,
       successRate,
+      partyLinePercentage,
       voteBreakdown: {
         yes: yesVotes,
         no: noVotes,
@@ -287,7 +335,7 @@ function MPDetail() {
             textAlign: 'center'
           }}>
             <h3 style={{ margin: '0 0 10px 0', color: '#495057' }}>Total Votes</h3>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#007bff' }}>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#495057' }}>
               {stats.totalVotes}
             </div>
             <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
@@ -303,7 +351,7 @@ function MPDetail() {
             textAlign: 'center'
           }}>
             <h3 style={{ margin: '0 0 10px 0', color: '#495057' }}>Participation Rate</h3>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#28a745' }}>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#495057' }}>
               {Math.round(stats.participationRate)}%
             </div>
             <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
@@ -319,7 +367,7 @@ function MPDetail() {
             textAlign: 'center'
           }}>
             <h3 style={{ margin: '0 0 10px 0', color: '#495057' }}>Success Rate</h3>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#17a2b8' }}>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#495057' }}>
               {Math.round(stats.successRate)}%
             </div>
             <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
@@ -334,8 +382,24 @@ function MPDetail() {
             border: '1px solid #dee2e6',
             textAlign: 'center'
           }}>
+            <h3 style={{ margin: '0 0 10px 0', color: '#495057' }}>Party Line Voting</h3>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#495057' }}>
+              {Math.round(stats.partyLinePercentage)}%
+            </div>
+            <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
+              Voted along party lines
+            </div>
+          </div>
+
+          <div style={{
+            backgroundColor: '#f8f9fa',
+            padding: '20px',
+            borderRadius: '8px',
+            border: '1px solid #dee2e6',
+            textAlign: 'center'
+          }}>
             <h3 style={{ margin: '0 0 10px 0', color: '#495057' }}>Recent Activity</h3>
-            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#6610f2' }}>
+            <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#495057' }}>
               {Math.round(stats.recentActivity.recentParticipationRate)}%
             </div>
             <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
@@ -551,14 +615,24 @@ function MPDetail() {
             style={{
               padding: '12px 24px',
               border: 'none',
-              backgroundColor: activeTab === 'votes' ? '#007bff' : 'transparent',
-              color: activeTab === 'votes' ? 'white' : '#666',
-              borderRadius: '8px 8px 0 0',
+              backgroundColor: 'transparent',
+              color: activeTab === 'votes' ? '#333' : '#666',
               cursor: 'pointer',
               fontSize: '16px',
-              fontWeight: activeTab === 'votes' ? 'bold' : 'normal',
-              borderBottom: activeTab === 'votes' ? '2px solid #007bff' : '2px solid transparent',
-              marginBottom: '-2px'
+              fontWeight: activeTab === 'votes' ? '600' : 'normal',
+              borderBottom: activeTab === 'votes' ? '2px solid #333' : '2px solid transparent',
+              marginBottom: '-2px',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              if (activeTab !== 'votes') {
+                e.target.style.color = '#333';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeTab !== 'votes') {
+                e.target.style.color = '#666';
+              }
             }}
           >
             📊 Voting Record
@@ -568,14 +642,24 @@ function MPDetail() {
             style={{
               padding: '12px 24px',
               border: 'none',
-              backgroundColor: activeTab === 'statistics' ? '#007bff' : 'transparent',
-              color: activeTab === 'statistics' ? 'white' : '#666',
-              borderRadius: '8px 8px 0 0',
+              backgroundColor: 'transparent',
+              color: activeTab === 'statistics' ? '#333' : '#666',
               cursor: 'pointer',
               fontSize: '16px',
-              fontWeight: activeTab === 'statistics' ? 'bold' : 'normal',
-              borderBottom: activeTab === 'statistics' ? '2px solid #007bff' : '2px solid transparent',
-              marginBottom: '-2px'
+              fontWeight: activeTab === 'statistics' ? '600' : 'normal',
+              borderBottom: activeTab === 'statistics' ? '2px solid #333' : '2px solid transparent',
+              marginBottom: '-2px',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              if (activeTab !== 'statistics') {
+                e.target.style.color = '#333';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeTab !== 'statistics') {
+                e.target.style.color = '#666';
+              }
             }}
           >
             📈 Statistics
