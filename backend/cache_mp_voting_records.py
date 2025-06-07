@@ -42,31 +42,26 @@ def load_historical_mps():
         log(f"Error loading historical MPs: {e}")
     return {}
 
-def get_all_cached_votes():
-    """Get all cached vote details"""
-    votes = []
+def get_cached_vote_files():
+    """Get list of cached vote files without loading them into memory"""
+    vote_files = []
     if not os.path.exists(VOTE_DETAILS_CACHE_DIR):
-        return votes
+        return vote_files
     
     for filename in sorted(os.listdir(VOTE_DETAILS_CACHE_DIR)):
         if filename.endswith('.json'):
             filepath = os.path.join(VOTE_DETAILS_CACHE_DIR, filename)
-            try:
-                with open(filepath, 'r') as f:
-                    vote_data = json.load(f)
-                votes.append(vote_data)
-            except Exception as e:
-                log(f"Error loading vote file {filename}: {e}")
+            vote_files.append(filepath)
     
-    return votes
+    return vote_files
 
 def extract_mp_slug_from_url(url):
     """Extract MP slug from politician URL"""
     return url.replace('/politicians/', '').replace('/', '')
 
-def build_mp_voting_records(votes, politicians, historical_mps):
-    """Build voting records for each MP from cached vote data"""
-    log("Building MP voting records from cached vote data...")
+def build_mp_voting_records(vote_files, politicians, historical_mps):
+    """Build voting records for each MP from cached vote data - memory efficient version"""
+    log(f"Building MP voting records from {len(vote_files)} cached vote files...")
     
     # Create MP lookup maps
     current_mp_map = {mp['url']: mp for mp in politicians}
@@ -75,43 +70,64 @@ def build_mp_voting_records(votes, politicians, historical_mps):
     # Track voting records per MP
     mp_voting_records = defaultdict(list)
     
-    # Process each cached vote
-    for vote_data in votes:
-        if 'ballots' not in vote_data or 'vote' not in vote_data:
-            continue
-            
-        vote_info = vote_data['vote']
-        ballots = vote_data['ballots']
+    # Process votes in batches to manage memory
+    batch_size = 100
+    processed = 0
+    
+    for i in range(0, len(vote_files), batch_size):
+        batch_files = vote_files[i:i + batch_size]
         
-        # Create vote record template
-        vote_record = {
-            'url': vote_info.get('url', ''),
-            'date': vote_info.get('date', ''),
-            'number': vote_info.get('number', ''),
-            'session': vote_info.get('session', ''),
-            'result': vote_info.get('result', ''),
-            'description': vote_info.get('description', {}),
-            'bill_url': vote_info.get('bill_url'),
-            'yea_total': vote_info.get('yea_total', 0),
-            'nay_total': vote_info.get('nay_total', 0),
-            'paired_total': vote_info.get('paired_total', 0)
-        }
-        
-        # Add each MP's ballot to their voting record
-        for ballot in ballots:
-            mp_url = ballot.get('politician_url')
-            if mp_url and mp_url in all_mp_map:
-                mp_slug = extract_mp_slug_from_url(mp_url)
+        # Process this batch of vote files
+        for vote_file in batch_files:
+            try:
+                with open(vote_file, 'r') as f:
+                    vote_data = json.load(f)
                 
-                # Create MP-specific vote record
-                mp_vote_record = {
-                    **vote_record,
-                    'mp_ballot': ballot.get('ballot', 'Unknown')
+                if 'ballots' not in vote_data or 'vote' not in vote_data:
+                    continue
+                    
+                vote_info = vote_data['vote']
+                ballots = vote_data['ballots']
+                
+                # Create vote record template
+                vote_record = {
+                    'url': vote_info.get('url', ''),
+                    'date': vote_info.get('date', ''),
+                    'number': vote_info.get('number', ''),
+                    'session': vote_info.get('session', ''),
+                    'result': vote_info.get('result', ''),
+                    'description': vote_info.get('description', {}),
+                    'bill_url': vote_info.get('bill_url'),
+                    'yea_total': vote_info.get('yea_total', 0),
+                    'nay_total': vote_info.get('nay_total', 0),
+                    'paired_total': vote_info.get('paired_total', 0)
                 }
                 
-                mp_voting_records[mp_slug].append(mp_vote_record)
+                # Add each MP's ballot to their voting record
+                for ballot in ballots:
+                    mp_url = ballot.get('politician_url')
+                    if mp_url and mp_url in all_mp_map:
+                        mp_slug = extract_mp_slug_from_url(mp_url)
+                        
+                        # Create MP-specific vote record
+                        mp_vote_record = {
+                            **vote_record,
+                            'mp_ballot': ballot.get('ballot', 'Unknown')
+                        }
+                        
+                        mp_voting_records[mp_slug].append(mp_vote_record)
+                
+                processed += 1
+                
+            except Exception as e:
+                log(f"Error processing vote file {vote_file}: {e}")
+                continue
+        
+        # Log progress after each batch
+        log(f"Processed {processed}/{len(vote_files)} vote files...")
     
     # Sort each MP's votes by date (most recent first)
+    log("Sorting MP voting records by date...")
     for mp_slug in mp_voting_records:
         mp_voting_records[mp_slug].sort(
             key=lambda x: x.get('date', ''), 
@@ -130,7 +146,8 @@ def save_mp_voting_records(mp_voting_records):
     successful = 0
     failed = 0
     
-    for mp_slug, votes in mp_voting_records.items():
+    total_mps = len(mp_voting_records)
+    for i, (mp_slug, votes) in enumerate(mp_voting_records.items(), 1):
         try:
             cache_data = {
                 'data': votes,
@@ -146,8 +163,9 @@ def save_mp_voting_records(mp_voting_records):
             
             successful += 1
             
-            if successful % 25 == 0:
-                log(f"Saved voting records for {successful} MPs...")
+            # More frequent progress updates
+            if successful % 10 == 0 or i == total_mps:
+                log(f"Saved voting records for {successful}/{total_mps} MPs...")
                 
         except Exception as e:
             log(f"Error saving voting record for {mp_slug}: {e}")
@@ -218,18 +236,18 @@ def main():
     log("Loading cached data...")
     politicians = load_politicians()
     historical_mps = load_historical_mps()
-    votes = get_all_cached_votes()
+    vote_files = get_cached_vote_files()
     
     log(f"Loaded {len(politicians)} current politicians")
     log(f"Loaded {len(historical_mps)} historical MPs") 
-    log(f"Loaded {len(votes)} cached votes")
+    log(f"Found {len(vote_files)} cached vote files")
     
-    if not votes:
-        log("No cached votes found. Run cache_all_votes.py first.")
+    if not vote_files:
+        log("No cached vote files found. Run cache_all_votes.py first.")
         return
     
     # Build MP voting records from cached vote data
-    mp_voting_records = build_mp_voting_records(votes, politicians, historical_mps)
+    mp_voting_records = build_mp_voting_records(vote_files, politicians, historical_mps)
     
     if not mp_voting_records:
         log("No voting records could be built from cached data.")
