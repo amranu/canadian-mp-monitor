@@ -151,31 +151,28 @@ function VoteDetails() {
   if (voteDetails.party_stats) {
     // Enriched cache format
     sortedParties = Object.entries(voteDetails.party_stats).sort((a, b) => b[1].total - a[1].total);
-  } else if (voteDetails.party_votes) {
-    // Raw API format - convert to party_stats format
-    const partyStatsMap = {};
+  } else if (voteDetails.ballots) {
+    // Raw API format - show overall vote breakdown since we don't have party enrichment
+    const totalStats = {
+      total: 0,
+      yes: 0,
+      no: 0,
+      paired: 0,
+      absent: 0,
+      other: 0
+    };
     
-    voteDetails.party_votes.forEach(partyVote => {
-      const partyName = partyVote.party.short_name?.en || 'Unknown';
-      if (!partyStatsMap[partyName]) {
-        partyStatsMap[partyName] = {
-          total: 0,
-          yes: 0,
-          no: 0,
-          paired: 0,
-          absent: 0,
-          other: 0
-        };
-      }
-      
-      partyStatsMap[partyName].total += partyVote.vote_count;
-      partyStatsMap[partyName].yes += partyVote.yea_count || 0;
-      partyStatsMap[partyName].no += partyVote.nay_count || 0;
-      partyStatsMap[partyName].paired += partyVote.paired_count || 0;
-      // Note: raw API doesn't seem to have absent/other counts
+    voteDetails.ballots.forEach(ballot => {
+      totalStats.total += 1;
+      const vote = ballot.ballot.toLowerCase();
+      if (vote === 'yes') totalStats.yes += 1;
+      else if (vote === 'no') totalStats.no += 1;
+      else if (vote === 'paired') totalStats.paired += 1;
+      else if (vote === 'absent') totalStats.absent += 1;
+      else totalStats.other += 1;
     });
     
-    sortedParties = Object.entries(partyStatsMap).sort((a, b) => b[1].total - a[1].total);
+    sortedParties = [['All MPs', totalStats]];
   }
     
   console.log('Current voteDetails:', voteDetails);
