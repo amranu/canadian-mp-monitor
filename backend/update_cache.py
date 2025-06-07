@@ -23,6 +23,7 @@ CACHE_DURATION = 10800  # 3 hours in seconds
 CACHE_DIR = 'cache'
 POLITICIANS_CACHE_FILE = os.path.join(CACHE_DIR, 'politicians.json')
 VOTES_CACHE_FILE = os.path.join(CACHE_DIR, 'votes.json')
+BILLS_CACHE_FILE = os.path.join(CACHE_DIR, 'bills.json')
 MP_VOTES_CACHE_DIR = os.path.join(CACHE_DIR, 'mp_votes')
 
 def log(message):
@@ -172,6 +173,43 @@ def get_mp_voting_records(mp_slug, limit=100):
         log(f"Error getting MP voting records for {mp_slug}: {e}")
         return []
 
+def load_all_bills():
+    """Load all bills from the API"""
+    log("Loading all bills from API...")
+    all_bills = []
+    offset = 0
+    limit = 100
+    
+    while True:
+        try:
+            response = requests.get(
+                f'{PARLIAMENT_API_BASE}/bills/',
+                params={'limit': limit, 'offset': offset},
+                headers=HEADERS,
+                timeout=30
+            )
+            response.raise_for_status()
+            data = response.json()
+            
+            all_bills.extend(data['objects'])
+            log(f"Loaded {len(data['objects'])} bills (total: {len(all_bills)})")
+            
+            if not data['pagination']['next_url']:
+                break
+                
+            offset += limit
+            
+            # Safety break to avoid infinite loops
+            if offset > 5000:
+                log("Safety break: offset > 5000")
+                break
+                
+        except Exception as e:
+            log(f"Error loading bills at offset {offset}: {e}")
+            break
+    
+    return all_bills
+
 def update_politicians_cache():
     """Update politicians cache"""
     log("=== Updating Politicians Cache ===")
@@ -210,6 +248,26 @@ def update_votes_cache():
             return True
     
     log("Failed to update votes cache")
+    return False
+
+def update_bills_cache():
+    """Update bills cache"""
+    log("=== Updating Bills Cache ===")
+    bills = load_all_bills()
+    
+    if bills:
+        cache_data = {
+            'data': bills,
+            'expires': time.time() + CACHE_DURATION,
+            'updated': datetime.now().isoformat(),
+            'count': len(bills)
+        }
+        
+        if save_cache_to_file(cache_data, BILLS_CACHE_FILE):
+            log(f"Successfully cached {len(bills)} bills")
+            return True
+    
+    log("Failed to update bills cache")
     return False
 
 def update_mp_votes_cache(politicians, max_mps=50):
@@ -262,6 +320,9 @@ def main():
     
     # Update votes cache
     update_votes_cache()
+    
+    # Update bills cache
+    update_bills_cache()
     
     # Update MP votes cache if we have politicians data
     if politicians:
