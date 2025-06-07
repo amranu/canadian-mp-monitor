@@ -105,8 +105,8 @@ function MPDetail() {
     const yesOnPassedBills = votesOnPassedBills.filter(v => v.mp_ballot === 'Yes').length;
     const noOnFailedBills = votesOnFailedBills.filter(v => v.mp_ballot === 'No').length;
     
-    // Party line voting calculation (simplified heuristic)
-    // This estimates party alignment based on vote results and MP's party affiliation
+    // Party line voting calculation using improved heuristics for all parties
+    // This estimates how often the MP votes with their party's expected position
     let partyLineVotes = 0;
     let totalPartyLineEligible = 0;
     
@@ -116,36 +116,66 @@ function MPDetail() {
       
       totalPartyLineEligible++;
       
-      // Heuristic: Assume government parties (Liberal) typically support bills that pass
-      // and opposition parties (Conservative, NDP, Bloc) often oppose
-      // This is a simplified approximation
-      const isGovernmentParty = mpParty === 'Liberal';
       const votedYes = vote.mp_ballot === 'Yes';
       const billPassed = vote.result === 'Passed';
+      const voteMargin = vote.yea_total - vote.nay_total;
+      const isCloseVote = Math.abs(voteMargin) < 30;
+      const isLandslideVote = Math.abs(voteMargin) > 80;
       
-      // Estimate if MP voted with their party's typical position
-      if (isGovernmentParty) {
-        // Government party typically supports bills, especially those that pass
-        if ((votedYes && billPassed) || (!votedYes && !billPassed)) {
-          partyLineVotes++;
+      // Determine if MP likely voted with their party based on party and vote characteristics
+      let votedWithParty = false;
+      
+      if (mpParty === 'Liberal') {
+        // Government party: usually supports government bills, especially those that pass
+        if (votedYes && billPassed) {
+          votedWithParty = true; // Supported successful government initiative
+        } else if (!votedYes && !billPassed) {
+          votedWithParty = true; // Opposed failed bill (rare but consistent)
+        } else if (votedYes && !billPassed && isCloseVote) {
+          votedWithParty = true; // Supported government bill that narrowly failed
+        }
+      } else if (mpParty === 'Conservative') {
+        // Main opposition: usually opposes government bills but supports popular measures
+        if (!votedYes && billPassed && !isLandslideVote) {
+          votedWithParty = true; // Opposed government bill (typical Conservative position)
+        } else if (!votedYes && !billPassed) {
+          votedWithParty = true; // Opposed bill that failed
+        } else if (votedYes && billPassed && isLandslideVote) {
+          votedWithParty = true; // Supported popular bipartisan measure
+        }
+      } else if (mpParty === 'NDP') {
+        // Social democratic opposition: often supports progressive bills, opposes conservative ones
+        if (votedYes && billPassed && voteMargin > 0) {
+          votedWithParty = true; // Supported progressive/social policy that passed
+        } else if (!votedYes && !billPassed) {
+          votedWithParty = true; // Opposed conservative bill that failed
+        } else if (!votedYes && billPassed && isCloseVote) {
+          votedWithParty = true; // Opposed government bill on principle
+        }
+      } else if (mpParty === 'Bloc' || mpParty === 'Bloc Québécois') {
+        // Quebec-focused party: supports measures benefiting Quebec, opposes those that don't
+        if (!votedYes && billPassed && !isLandslideVote) {
+          votedWithParty = true; // Opposed non-Quebec focused bill
+        } else if (votedYes && billPassed && isLandslideVote) {
+          votedWithParty = true; // Supported popular measure
+        } else if (!votedYes && !billPassed) {
+          votedWithParty = true; // Opposed bill that failed
+        }
+      } else if (mpParty === 'Green') {
+        // Environmental focus: supports environmental bills, opposes harmful ones
+        if (votedYes && billPassed) {
+          votedWithParty = true; // Supported progressive/environmental policy
+        } else if (!votedYes && !billPassed) {
+          votedWithParty = true; // Opposed harmful policy that failed
         }
       } else {
-        // Opposition parties: more complex, but often oppose government bills
-        // If it's a close vote that passed, opposition likely opposed
-        // If it failed, opposition likely opposed it too
-        const voteMargin = vote.yea_total - vote.nay_total;
-        const isCloseVote = Math.abs(voteMargin) < 20;
-        
-        if (billPassed && !votedYes && isCloseVote) {
-          // Opposed a bill that barely passed (typical opposition behavior)
-          partyLineVotes++;
-        } else if (!billPassed && !votedYes) {
-          // Opposed a bill that failed
-          partyLineVotes++;
-        } else if (billPassed && votedYes && !isCloseVote) {
-          // Supported a bill that passed easily (bipartisan support)
-          partyLineVotes++;
-        }
+        // Independent or other parties: assume they vote based on personal conviction
+        // Give them benefit of doubt for party line voting
+        votedWithParty = true;
+      }
+      
+      if (votedWithParty) {
+        partyLineVotes++;
       }
     });
     
