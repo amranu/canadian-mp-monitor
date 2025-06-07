@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { parliamentApi } from '../services/parliamentApi';
-import { calculatePartyLineStats } from '../utils/partyLineCalculator';
 
 function MPDetail() {
   const { mpSlug } = useParams();
@@ -19,8 +18,6 @@ function MPDetail() {
   const [activeTab, setActiveTab] = useState('votes');
   const [selectedSession, setSelectedSession] = useState('current');
   const [availableSessions, setAvailableSessions] = useState([]);
-  const [partyLineStats, setPartyLineStats] = useState(null);
-  const [calculatingPartyLine, setCalculatingPartyLine] = useState(false);
 
   useEffect(() => {
     loadMP();
@@ -39,11 +36,6 @@ function MPDetail() {
     }
   }, [votes]);
 
-  // Reset party-line stats when session changes
-  useEffect(() => {
-    setPartyLineStats(null);
-    setCalculatingPartyLine(false);
-  }, [selectedSession]);
 
   // Load all votes when a specific session is selected
   useEffect(() => {
@@ -146,33 +138,6 @@ function MPDetail() {
     };
   };
 
-  // Calculate accurate party-line voting stats
-  const calculateAccuratePartyLineStats = async () => {
-    if (!mp || !votes || votes.length === 0) return;
-    
-    setCalculatingPartyLine(true);
-    try {
-      const mpParty = mp.current_party?.short_name?.en || 'Unknown';
-      console.log('Starting party-line calculation for:', mpParty);
-      console.log('Selected session:', selectedSession);
-      
-      // Filter votes by selected session
-      let filteredVotes = votes;
-      if (selectedSession !== 'all' && selectedSession !== 'current') {
-        filteredVotes = votes.filter(vote => vote.session === selectedSession);
-        console.log(`Filtered to ${filteredVotes.length} votes for session ${selectedSession}`);
-      } else {
-        filteredVotes = votes.slice(0, 100); // Limit for performance
-      }
-      
-      const stats = await calculatePartyLineStats(filteredVotes, mpParty);
-      console.log('Party-line stats calculated:', stats);
-      setPartyLineStats(stats);
-    } catch (error) {
-      console.error('Error calculating party-line stats:', error);
-    }
-    setCalculatingPartyLine(false);
-  };
 
   const loadMP = async () => {
     try {
@@ -306,8 +271,6 @@ function MPDetail() {
         setHasSpecificVotes(true);
         setVotesLoading(false);
         
-        // Trigger accurate party-line calculation when votes are loaded
-        setTimeout(() => calculateAccuratePartyLineStats(), 100);
         setVotesOffset(data.objects.length);
         // Check if there are more votes to load based on total cached
         if (data.total_cached && data.objects.length >= data.total_cached) {
@@ -428,77 +391,6 @@ function MPDetail() {
             </div>
           </div>
 
-          <div style={{
-            backgroundColor: 'white',
-            padding: '25px',
-            borderRadius: '8px',
-            border: '1px solid #dee2e6',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-          }}>
-            <h3 style={{ margin: '0 0 15px 0', color: '#495057' }}>Party Line Voting</h3>
-            
-            {/* Accurate party-line calculation */}
-            {partyLineStats && (
-              <div style={{ padding: '15px', backgroundColor: '#e8f5e8', borderRadius: '6px', border: '1px solid #28a745' }}>
-                <div style={{ fontSize: '14px', color: '#155724', marginBottom: '10px' }}>
-                  <strong>Party-Line Voting:</strong>
-                </div>
-                <div style={{ 
-                  fontSize: '28px', 
-                  fontWeight: 'bold', 
-                  color: '#28a745',
-                  textAlign: 'center'
-                }}>
-                  {partyLineStats.partyLinePercentage}%
-                </div>
-                <div style={{ fontSize: '12px', color: '#155724', textAlign: 'center', marginTop: '5px' }}>
-                  {partyLineStats.partyLineVotes} of {partyLineStats.totalEligibleVotes} votes with party majority
-                </div>
-                <div style={{ fontSize: '12px', color: '#155724', textAlign: 'center', marginTop: '5px' }}>
-                  Average party cohesion: {partyLineStats.avgPartyCohesion}%
-                </div>
-                {partyLineStats.partyDisciplineBreaks.length > 0 && (
-                  <div style={{ fontSize: '12px', color: '#856404', marginTop: '10px' }}>
-                    <strong>Recent party breaks:</strong> {partyLineStats.partyDisciplineBreaks.length}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {calculatingPartyLine && (
-              <div style={{ padding: '15px', backgroundColor: '#fff3cd', borderRadius: '6px', textAlign: 'center' }}>
-                <div style={{ fontSize: '14px', color: '#856404' }}>
-                  🔄 Calculating accurate party-line statistics...
-                </div>
-                <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '5px' }}>
-                  Analyzing actual party majority positions
-                </div>
-              </div>
-            )}
-
-            {!partyLineStats && !calculatingPartyLine && votes.length > 0 && (
-              <div style={{ textAlign: 'center' }}>
-                <button 
-                  onClick={calculateAccuratePartyLineStats}
-                  style={{
-                    padding: '12px 24px',
-                    backgroundColor: '#28a745',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontSize: '16px',
-                    fontWeight: '500'
-                  }}
-                >
-                  Calculate Party-Line Stats
-                </button>
-                <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '10px' }}>
-                  Analyze actual party majority positions
-                </div>
-              </div>
-            )}
-          </div>
 
           <div style={{
             backgroundColor: '#f8f9fa',
