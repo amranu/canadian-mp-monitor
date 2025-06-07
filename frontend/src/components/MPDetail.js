@@ -704,59 +704,42 @@ function MPDetail() {
             {/* Session Selector */}
             {availableSessions.length > 1 && (
               <div style={{ 
-                backgroundColor: '#f8f9fa',
-                padding: '20px',
-                borderRadius: '8px',
-                border: '1px solid #dee2e6',
-                marginBottom: '20px'
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '15px', 
+                marginBottom: '25px',
+                flexWrap: 'wrap'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
-                  <label style={{ 
-                    fontSize: '16px', 
-                    color: '#495057', 
-                    fontWeight: '600',
-                    minWidth: 'fit-content'
-                  }}>
-                    📅 Parliamentary Session:
-                  </label>
-                  <select
-                    value={selectedSession}
-                    onChange={(e) => setSelectedSession(e.target.value)}
-                    style={{
-                      padding: '10px 15px',
-                      border: '2px solid #007bff',
-                      borderRadius: '6px',
-                      backgroundColor: 'white',
-                      fontSize: '16px',
-                      color: '#007bff',
-                      cursor: 'pointer',
-                      outline: 'none',
-                      fontWeight: '600',
-                      minWidth: '200px'
-                    }}
-                  >
-                    <option value="all">All Sessions ({votes.length} votes)</option>
-                    {availableSessions.map(session => {
-                      const sessionVoteCount = votes.filter(vote => vote.session === session).length;
-                      return (
-                        <option key={session} value={session}>
-                          Session {session} ({sessionVoteCount} votes)
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-                <div style={{ 
+                <label style={{ 
                   fontSize: '14px', 
-                  color: '#6c757d', 
-                  marginTop: '10px',
-                  fontStyle: 'italic'
+                  color: '#666', 
+                  fontWeight: '500',
+                  minWidth: 'fit-content'
                 }}>
-                  {selectedSession === 'all' 
-                    ? 'Viewing voting records from all parliamentary sessions'
-                    : `Viewing voting records from Session ${selectedSession} only`
-                  }
-                </div>
+                  Session:
+                </label>
+                <select
+                  value={selectedSession}
+                  onChange={(e) => setSelectedSession(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    backgroundColor: 'white',
+                    fontSize: '14px',
+                    color: '#333',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  <option value="all">All Sessions</option>
+                  {availableSessions.map(session => (
+                    <option key={session} value={session}>
+                      Session {session}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
           </div>
