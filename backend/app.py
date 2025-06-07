@@ -689,7 +689,7 @@ def get_mp_voting_records_from_api(mp_slug, limit=20, offset=0):
         print(f"[{datetime.now()}] Error getting MP voting records from API for {mp_slug}: {e}")
         return []
 
-def get_mp_voting_records(mp_slug, limit=100):
+def get_mp_voting_records(mp_slug, limit=300):
     """Get voting records for a specific MP"""
     try:
         # Get all ballots for this politician
@@ -697,7 +697,7 @@ def get_mp_voting_records(mp_slug, limit=100):
             f'{PARLIAMENT_API_BASE}/votes/ballots/',
             params={
                 'politician': f'/politicians/{mp_slug}/',
-                'limit': limit,
+                'limit': limit,  # Now supports up to 300
                 'offset': 0
             },
             headers=HEADERS,
@@ -738,7 +738,7 @@ def get_mp_voting_records(mp_slug, limit=100):
         # Sort by date descending
         votes_with_ballots.sort(key=lambda x: x.get('date', ''), reverse=True)
         
-        return votes_with_ballots[:limit]
+        return votes_with_ballots[:limit]  # Return up to specified limit
         
     except Exception as e:
         print(f"Error getting MP voting records for {mp_slug}: {e}")
@@ -769,7 +769,7 @@ def cache_mp_votes_background(mp_slug):
         cache['mp_votes'][mp_slug] = {'loading': True, 'data': None, 'expires': 0}
         
         print(f"[{datetime.now()}] Background caching votes for {mp_slug}")
-        votes = get_mp_voting_records(mp_slug, 100)
+        votes = get_mp_voting_records(mp_slug, 300)  # Increased from 100 to 300 for better session coverage
         
         expires_time = time.time() + CACHE_DURATION
         cache['mp_votes'][mp_slug] = {
@@ -800,8 +800,8 @@ def start_background_mp_votes_caching():
             if not cache['politicians']['data']:
                 return
                 
-            # Cache votes for first 50 MPs (most likely to be viewed)
-            popular_mps = cache['politicians']['data'][:50]
+            # Cache votes for first 100 MPs (increased for better coverage)
+            popular_mps = cache['politicians']['data'][:100]
             
             print(f"[{datetime.now()}] Starting background caching for {len(popular_mps)} MPs")
             
