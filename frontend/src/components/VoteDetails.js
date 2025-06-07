@@ -295,7 +295,7 @@ function VoteDetails() {
       )}
 
       {/* Party Statistics */}
-      {sortedParties && sortedParties.length > 0 && (
+      {sortedParties && sortedParties.length > 0 ? (
       <div style={{ marginBottom: '30px' }}>
         <h2 style={{ marginBottom: '20px' }}>Party Voting Statistics</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
@@ -329,7 +329,7 @@ function VoteDetails() {
           ))}
         </div>
       </div>
-      )}
+      ) : null}
 
       {/* Unified MP Vote Visualization */}
       <div style={{ marginBottom: '30px' }}>
