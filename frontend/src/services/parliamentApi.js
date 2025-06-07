@@ -98,7 +98,7 @@ export const parliamentApi = {
     };
   },
 
-  async getMPVotes(mpUrl, limit = 20, offset = 0) {
+  async getMPVotes(mpUrl, limit = 1000, offset = 0) {
     const slug = mpUrl.replace('/politicians/', '').replace('/', '');
     const cacheKey = `mp-votes-${slug}-${limit}-${offset}`;
     

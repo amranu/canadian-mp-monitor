@@ -381,75 +381,93 @@ def get_politicians():
 @app.route('/api/politicians/<path:politician_path>')
 def get_politician(politician_path):
     try:
-        response = requests.get(
-            f'{PARLIAMENT_API_BASE}/politicians/{politician_path}/',
-            headers=HEADERS
-        )
-        response.raise_for_status()
-        return jsonify(response.json())
-    except requests.exceptions.RequestException as e:
+        # Only serve from cached politicians data
+        if cache['politicians']['data']:
+            # Find the politician in our cached data
+            politician_url = f'/politicians/{politician_path}/'
+            for politician in cache['politicians']['data']:
+                if politician['url'] == politician_url:
+                    print(f"[{datetime.now()}] Serving politician {politician_path} from cache")
+                    return jsonify(politician)
+        
+        # No cached data available
+        print(f"[{datetime.now()}] Politician {politician_path} not found in cache")
+        return jsonify({
+            'error': 'Politician not found in cache',
+            'message': 'This politician is not available in our cached data.',
+            'politician_path': politician_path
+        }), 404
+        
+    except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/votes/ballots')
 def get_vote_ballots():
     vote_url = request.args.get('vote')
-    limit = int(request.args.get('limit', 100))
+    limit = int(request.args.get('limit', 400))
     offset = int(request.args.get('offset', 0))
     
     if not vote_url:
         return jsonify({'error': 'vote parameter is required'}), 400
     
     try:
-        response = requests.get(
-            f'{PARLIAMENT_API_BASE}/votes/ballots/',
-            params={
-                'vote': vote_url,
-                'limit': limit,
-                'offset': offset
-            },
-            headers=HEADERS
-        )
-        response.raise_for_status()
-        return jsonify(response.json())
-    except requests.exceptions.RequestException as e:
+        # Only serve from cached vote details data
+        # Convert vote URL to path for cache lookup
+        vote_path = vote_url.replace('/votes/', '').replace('/', '') if vote_url.startswith('/votes/') else vote_url
+        
+        cached_data = load_cached_vote_details(vote_path)
+        if cached_data and 'ballots' in cached_data:
+            ballots = cached_data['ballots']
+            
+            # Apply pagination
+            end_index = offset + limit
+            paginated_ballots = ballots[offset:end_index]
+            
+            print(f"[{datetime.now()}] Serving {len(paginated_ballots)} ballots for {vote_path} from cache")
+            
+            return jsonify({
+                'objects': paginated_ballots,
+                'meta': {
+                    'limit': limit,
+                    'offset': offset,
+                    'total_count': len(ballots)
+                }
+            })
+        
+        # No cached data available
+        print(f"[{datetime.now()}] Vote ballots for {vote_path} not available in cache")
+        return jsonify({
+            'error': 'Vote ballots not cached',
+            'message': 'Ballots for this vote have not been cached yet. Background caching scripts will update this data.',
+            'vote_url': vote_url
+        }), 404
+        
+    except Exception as e:
+        print(f"[{datetime.now()}] Error serving vote ballots for {vote_url}: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/politician/<path:politician_path>/votes')
 def get_politician_votes(politician_path):
-    limit = int(request.args.get('limit', 20))
+    limit = int(request.args.get('limit', 1000))  # Allow large limits for cached data
     offset = int(request.args.get('offset', 0))
     
     try:
-        # Check if we have cached data for this MP
+        # Only serve from cached data - never call external API
         if (politician_path in cache['mp_votes'] and 
             cache['mp_votes'][politician_path]['data'] is not None and 
             time.time() < cache['mp_votes'][politician_path]['expires']):
             
             all_cached_votes = cache['mp_votes'][politician_path]['data']
             
-            # If requesting data beyond cache, fetch from API
-            if offset >= len(all_cached_votes):
-                print(f"[{datetime.now()}] Request beyond cache ({offset} >= {len(all_cached_votes)}), fetching from API")
-                api_votes = get_mp_voting_records_from_api(politician_path, limit, offset)
-                return jsonify({
-                    'objects': api_votes,
-                    'pagination': {
-                        'offset': offset,
-                        'limit': limit,
-                        'next_url': None,
-                        'previous_url': None
-                    },
-                    'cached': False,
-                    'total_cached': len(all_cached_votes),
-                    'from_api': True
-                })
+            # Apply pagination to cached data
+            end_index = offset + limit
+            paginated_votes = all_cached_votes[offset:end_index]
+            has_more = end_index < len(all_cached_votes)
             
-            # Serve from cache if available
-            cached_votes = all_cached_votes[offset:offset + limit]
-            print(f"[{datetime.now()}] Serving cached votes for {politician_path} (offset: {offset}, limit: {limit})")
+            print(f"[{datetime.now()}] Serving {len(paginated_votes)} cached votes for {politician_path} (offset: {offset}, total cached: {len(all_cached_votes)})")
             
             return jsonify({
-                'objects': cached_votes,
+                'objects': paginated_votes,
                 'pagination': {
                     'offset': offset,
                     'limit': limit,
@@ -457,10 +475,11 @@ def get_politician_votes(politician_path):
                     'previous_url': None
                 },
                 'cached': True,
-                'total_cached': len(all_cached_votes)
+                'total_cached': len(all_cached_votes),
+                'has_more': has_more
             })
         
-        # If not cached or loading, check if currently loading
+        # Check if currently being cached in background
         if (politician_path in cache['mp_votes'] and 
             cache['mp_votes'][politician_path].get('loading', False)):
             
@@ -468,22 +487,18 @@ def get_politician_votes(politician_path):
                 'objects': [],
                 'pagination': {'offset': 0, 'limit': limit, 'next_url': None, 'previous_url': None},
                 'loading': True,
-                'message': 'Votes are being loaded in the background, please try again in a moment'
+                'cached': False,
+                'message': 'Voting records are being cached in the background, please refresh in a moment'
             })
         
-        # Start background caching for this MP
-        threading.Thread(
-            target=cache_mp_votes_background, 
-            args=(politician_path,), 
-            daemon=True
-        ).start()
-        
-        # Return immediate response suggesting to try again
+        # No cached data available and not currently loading
+        print(f"[{datetime.now()}] No cached voting data available for {politician_path}")
         return jsonify({
             'objects': [],
             'pagination': {'offset': 0, 'limit': limit, 'next_url': None, 'previous_url': None},
-            'loading': True,
-            'message': 'Loading voting records in the background, please refresh in a few seconds'
+            'cached': False,
+            'total_cached': 0,
+            'message': 'Voting records not yet cached for this MP. Background caching scripts will update this data.'
         })
         
     except Exception as e:
@@ -492,7 +507,7 @@ def get_politician_votes(politician_path):
 @app.route('/api/votes/<path:vote_path>/details')
 def get_vote_details(vote_path):
     try:
-        # First, try to load from cache
+        # Only serve from cached data - never call external API
         cached_data = load_cached_vote_details(vote_path)
         if cached_data:
             enriched_data = enrich_cached_vote_details(cached_data)
@@ -500,52 +515,17 @@ def get_vote_details(vote_path):
                 print(f"[{datetime.now()}] Serving vote details for {vote_path} from cache")
                 return jsonify(enriched_data)
         
-        # Fallback to API if not cached (for new votes)
-        print(f"[{datetime.now()}] Vote {vote_path} not cached, fetching from API")
+        # No cached data available
+        print(f"[{datetime.now()}] Vote details for {vote_path} not available in cache")
+        return jsonify({
+            'error': 'Vote details not cached',
+            'message': 'This vote has not been cached yet. Background caching scripts will update this data.',
+            'vote_path': vote_path,
+            'from_cache': False
+        }), 404
         
-        # Get the vote details
-        vote_response = requests.get(
-            f'{PARLIAMENT_API_BASE}/votes/{vote_path}/',
-            headers=HEADERS
-        )
-        vote_response.raise_for_status()
-        vote_data = vote_response.json()
-        
-        # Get all ballots for this vote
-        ballots_response = requests.get(
-            f'{PARLIAMENT_API_BASE}/votes/ballots/',
-            params={
-                'vote': f'/votes/{vote_path}/',
-                'limit': 400  # Get all MPs
-            },
-            headers=HEADERS
-        )
-        ballots_response.raise_for_status()
-        ballots_data = ballots_response.json()
-        
-        # Create temporary cached data structure
-        temp_cached_data = {
-            'vote': vote_data,
-            'ballots': ballots_data.get('objects', []),
-            'cached_at': datetime.now().isoformat()
-        }
-        
-        # Enrich and return
-        enriched_data = enrich_cached_vote_details(temp_cached_data)
-        enriched_data['from_cache'] = False  # Mark as API fetch
-        
-        # Save to cache for future use
-        try:
-            filename = get_cached_vote_details_filename(vote_path)
-            with open(filename, 'w') as f:
-                json.dump(temp_cached_data, f, indent=2)
-            print(f"[{datetime.now()}] Cached new vote details for {vote_path}")
-        except Exception as e:
-            print(f"[{datetime.now()}] Error saving vote cache for {vote_path}: {e}")
-        
-        return jsonify(enriched_data)
-        
-    except requests.exceptions.RequestException as e:
+    except Exception as e:
+        print(f"[{datetime.now()}] Error serving vote details for {vote_path}: {e}")
         return jsonify({'error': str(e)}), 500
 
 def load_recent_votes():

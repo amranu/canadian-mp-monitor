@@ -241,7 +241,7 @@ function MPDetail() {
       const mpUrl = `/politicians/${mpSlug}/`;
       const newOffset = votesOffset + 20;
       
-      const data = await parliamentApi.getMPVotes(mpUrl, 20, newOffset);
+      const data = await parliamentApi.getMPVotes(mpUrl, 1000, newOffset);
       
       if (data.objects && data.objects.length > 0) {
         // Append new votes to existing ones
@@ -299,7 +299,7 @@ function MPDetail() {
         }
       }
       
-      const data = await parliamentApi.getMPVotes(mpUrl, 20);
+      const data = await parliamentApi.getMPVotes(mpUrl, 1000);
       
       // Check if votes are being loaded in background
       if (data.loading && retryCount < 20) {
