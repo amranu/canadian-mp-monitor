@@ -5,6 +5,7 @@ import time
 import threading
 import json
 import os
+import re
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -461,6 +462,28 @@ def build_bills_with_votes_index():
         print(f"[{datetime.now()}] Error building bills with votes index: {e}")
         return set()
 
+def clean_html_text(html_text):
+    """Clean HTML tags and format text properly"""
+    if not html_text:
+        return None
+    
+    # Remove HTML tags
+    clean_text = re.sub(r'<[^>]+>', '', html_text)
+    
+    # Replace common HTML entities
+    clean_text = clean_text.replace('&nbsp;', ' ')
+    clean_text = clean_text.replace('&amp;', '&')
+    clean_text = clean_text.replace('&lt;', '<')
+    clean_text = clean_text.replace('&gt;', '>')
+    clean_text = clean_text.replace('&quot;', '"')
+    clean_text = clean_text.replace('&#39;', "'")
+    
+    # Clean up extra whitespace
+    clean_text = re.sub(r'\s+', ' ', clean_text)
+    clean_text = clean_text.strip()
+    
+    return clean_text if clean_text else None
+
 def get_legisinfo_cache_filename(session, bill_number):
     """Get cache filename for LEGISinfo data"""
     safe_bill_number = bill_number.replace('/', '_').replace('-', '_')
@@ -532,7 +555,9 @@ def enrich_bill_with_legisinfo(bill):
             # If we can't parse the response, return original bill
             return bill
         
-        enriched_bill['legis_summary'] = legis_info.get('ShortLegislativeSummaryEn')
+        # Clean HTML from summary text
+        raw_summary = legis_info.get('ShortLegislativeSummaryEn')
+        enriched_bill['legis_summary'] = clean_html_text(raw_summary)
         enriched_bill['legis_status'] = legis_info.get('StatusNameEn')
         enriched_bill['legis_sponsor'] = legis_info.get('SponsorPersonName')
         enriched_bill['legis_sponsor_title'] = legis_info.get('SponsorAffiliationTitle')
