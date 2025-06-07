@@ -693,36 +693,77 @@ function MPDetail() {
       {/* Tab Content */}
       {activeTab === 'votes' && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ margin: 0 }}>{mp.name}'s Voting Record</h2>
+          <div style={{ marginBottom: '30px' }}>
+            <h2 style={{ margin: '0 0 20px 0' }}>
+              {mp.name}'s Voting Record
+              {selectedSession !== 'all' && (
+                <span style={{ 
+                  fontSize: '18px', 
+                  color: '#007bff', 
+                  fontWeight: 'normal',
+                  marginLeft: '10px'
+                }}>
+                  - Session {selectedSession}
+                </span>
+              )}
+            </h2>
             
             {/* Session Selector */}
             {availableSessions.length > 1 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <label style={{ fontSize: '14px', color: '#666', fontWeight: '500' }}>
-                  Parliamentary Session:
-                </label>
-                <select
-                  value={selectedSession}
-                  onChange={(e) => setSelectedSession(e.target.value)}
-                  style={{
-                    padding: '8px 12px',
-                    border: '1px solid #dee2e6',
-                    borderRadius: '4px',
-                    backgroundColor: 'white',
-                    fontSize: '14px',
-                    color: '#495057',
-                    cursor: 'pointer',
-                    outline: 'none'
-                  }}
-                >
-                  <option value="all">All Sessions</option>
-                  {availableSessions.map(session => (
-                    <option key={session} value={session}>
-                      Session {session}
-                    </option>
-                  ))}
-                </select>
+              <div style={{ 
+                backgroundColor: '#f8f9fa',
+                padding: '20px',
+                borderRadius: '8px',
+                border: '1px solid #dee2e6',
+                marginBottom: '20px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+                  <label style={{ 
+                    fontSize: '16px', 
+                    color: '#495057', 
+                    fontWeight: '600',
+                    minWidth: 'fit-content'
+                  }}>
+                    📅 Parliamentary Session:
+                  </label>
+                  <select
+                    value={selectedSession}
+                    onChange={(e) => setSelectedSession(e.target.value)}
+                    style={{
+                      padding: '10px 15px',
+                      border: '2px solid #007bff',
+                      borderRadius: '6px',
+                      backgroundColor: 'white',
+                      fontSize: '16px',
+                      color: '#007bff',
+                      cursor: 'pointer',
+                      outline: 'none',
+                      fontWeight: '600',
+                      minWidth: '200px'
+                    }}
+                  >
+                    <option value="all">All Sessions ({votes.length} votes)</option>
+                    {availableSessions.map(session => {
+                      const sessionVoteCount = votes.filter(vote => vote.session === session).length;
+                      return (
+                        <option key={session} value={session}>
+                          Session {session} ({sessionVoteCount} votes)
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div style={{ 
+                  fontSize: '14px', 
+                  color: '#6c757d', 
+                  marginTop: '10px',
+                  fontStyle: 'italic'
+                }}>
+                  {selectedSession === 'all' 
+                    ? 'Viewing voting records from all parliamentary sessions'
+                    : `Viewing voting records from Session ${selectedSession} only`
+                  }
+                </div>
               </div>
             )}
           </div>
@@ -908,8 +949,8 @@ function MPDetail() {
           })}
         </div>
         
-        {/* Load More Button */}
-        {hasMoreVotes && getFilteredVotes().length > 0 && (
+        {/* Load More Button - only show if we have more votes AND we're viewing all sessions */}
+        {hasMoreVotes && getFilteredVotes().length > 0 && selectedSession === 'all' && (
           <div style={{ textAlign: 'center', marginTop: '30px' }}>
             <button
               onClick={loadMoreVotes}
@@ -950,10 +991,11 @@ function MPDetail() {
           </div>
         )}
         
-        {!hasMoreVotes && getFilteredVotes().length > 20 && (
+        {/* End of votes message - only show for "all sessions" view when no more votes */}
+        {!hasMoreVotes && getFilteredVotes().length > 20 && selectedSession === 'all' && (
           <div style={{ textAlign: 'center', marginTop: '30px' }}>
             <p style={{ color: '#666', fontSize: '14px' }}>
-              All available votes loaded ({getFilteredVotes().length} total{selectedSession !== 'all' ? ` for Session ${selectedSession}` : ''})
+              All available votes loaded ({getFilteredVotes().length} total)
             </p>
           </div>
         )}
