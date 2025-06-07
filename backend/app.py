@@ -491,14 +491,40 @@ def get_politician_votes(politician_path):
                 'message': 'Voting records are being cached in the background, please refresh in a moment'
             })
         
-        # No cached data available and not currently loading
-        print(f"[{datetime.now()}] No cached voting data available for {politician_path}")
+        # Try to build from comprehensive cache
+        print(f"[{datetime.now()}] Building voting records for {politician_path} from comprehensive cache...")
+        comprehensive_votes = build_mp_votes_from_comprehensive_cache(politician_path)
+        
+        if comprehensive_votes:
+            # Apply pagination to comprehensive data
+            end_index = offset + limit
+            paginated_votes = comprehensive_votes[offset:end_index]
+            has_more = end_index < len(comprehensive_votes)
+            
+            print(f"[{datetime.now()}] Serving {len(paginated_votes)} votes for {politician_path} from comprehensive cache (total: {len(comprehensive_votes)})")
+            
+            return jsonify({
+                'objects': paginated_votes,
+                'pagination': {
+                    'offset': offset,
+                    'limit': limit,
+                    'next_url': None,
+                    'previous_url': None
+                },
+                'cached': True,
+                'total_cached': len(comprehensive_votes),
+                'has_more': has_more,
+                'source': 'comprehensive_cache'
+            })
+        
+        # No data available anywhere
+        print(f"[{datetime.now()}] No voting data available for {politician_path}")
         return jsonify({
             'objects': [],
             'pagination': {'offset': 0, 'limit': limit, 'next_url': None, 'previous_url': None},
             'cached': False,
             'total_cached': 0,
-            'message': 'Voting records not yet cached for this MP. Background caching scripts will update this data.'
+            'message': 'No voting records available for this MP.'
         })
         
     except Exception as e:
@@ -540,18 +566,33 @@ def load_comprehensive_votes():
             cached_votes = index_data.get('cached_votes', {})
             all_votes = []
             
-            # Convert cached vote index to vote objects
+            # Convert cached vote index to full vote objects
             for vote_id, vote_info in cached_votes.items():
-                # Parse vote_id (format: "44-1_928")
-                if '_' in vote_id:
-                    session, number = vote_id.split('_', 1)
-                    vote_obj = {
-                        'url': vote_info['url'],
-                        'session': session,
-                        'number': int(number),
-                        'id': vote_id
-                    }
-                    all_votes.append(vote_obj)
+                try:
+                    # Load the full vote details from cache file
+                    vote_cache_file = os.path.join(VOTE_DETAILS_CACHE_DIR, f'{vote_id}.json')
+                    if os.path.exists(vote_cache_file):
+                        with open(vote_cache_file, 'r') as f:
+                            vote_details = json.load(f)
+                        
+                        vote_data = vote_details.get('vote', {})
+                        # Ensure all expected fields exist with proper defaults
+                        vote_obj = {
+                            'url': vote_data.get('url', vote_info['url']),
+                            'session': vote_data.get('session', ''),
+                            'number': vote_data.get('number', 0),
+                            'date': vote_data.get('date', ''),
+                            'description': vote_data.get('description', {}),
+                            'result': vote_data.get('result', ''),
+                            'bill_url': vote_data.get('bill_url'),  # Can be None
+                            'yea_total': vote_data.get('yea_total', 0),
+                            'nay_total': vote_data.get('nay_total', 0),
+                            'paired_total': vote_data.get('paired_total', 0)
+                        }
+                        all_votes.append(vote_obj)
+                except Exception as e:
+                    print(f"Error loading vote details for {vote_id}: {e}")
+                    continue
             
             # Sort by session and number (newest first)
             all_votes.sort(key=lambda x: (x['session'], x['number']), reverse=True)
@@ -573,6 +614,63 @@ def load_comprehensive_votes():
         return response.json()['objects']
     except Exception as e:
         print(f"Error loading votes from API: {e}")
+        return []
+
+def build_mp_votes_from_comprehensive_cache(mp_slug):
+    """Build MP voting records from comprehensive vote cache"""
+    try:
+        if not os.path.exists(VOTE_CACHE_INDEX_FILE):
+            return []
+            
+        with open(VOTE_CACHE_INDEX_FILE, 'r') as f:
+            index_data = json.load(f)
+        
+        cached_votes = index_data.get('cached_votes', {})
+        mp_votes = []
+        mp_url = f'/politicians/{mp_slug}/'
+        
+        # Check each cached vote for this MP's ballot
+        for vote_id, vote_info in cached_votes.items():
+            try:
+                # Load the detailed vote cache file
+                vote_cache_file = os.path.join(VOTE_DETAILS_CACHE_DIR, f'{vote_id}.json')
+                if os.path.exists(vote_cache_file):
+                    with open(vote_cache_file, 'r') as f:
+                        vote_details = json.load(f)
+                    
+                    # Find this MP's ballot in the vote
+                    for ballot in vote_details.get('ballots', []):
+                        if ballot.get('politician_url') == mp_url:
+                            # Build vote record with MP's ballot - ensure all expected fields exist
+                            vote_data = vote_details.get('vote', {})
+                            vote_record = {
+                                'url': vote_data.get('url', ''),
+                                'date': vote_data.get('date', ''),
+                                'number': vote_data.get('number', ''),
+                                'session': vote_data.get('session', ''),
+                                'result': vote_data.get('result', ''),
+                                'description': vote_data.get('description', {}),
+                                'bill_url': vote_data.get('bill_url'),  # Can be null
+                                'yea_total': vote_data.get('yea_total', 0),
+                                'nay_total': vote_data.get('nay_total', 0),
+                                'paired_total': vote_data.get('paired_total', 0),
+                                'mp_ballot': ballot.get('ballot', 'Unknown')
+                            }
+                            mp_votes.append(vote_record)
+                            break
+                            
+            except Exception as e:
+                print(f"Error processing vote {vote_id} for {mp_slug}: {e}")
+                continue
+        
+        # Sort by date descending
+        mp_votes.sort(key=lambda x: x.get('date', ''), reverse=True)
+        
+        print(f"[{datetime.now()}] Built {len(mp_votes)} votes for {mp_slug} from comprehensive cache")
+        return mp_votes
+        
+    except Exception as e:
+        print(f"Error building MP votes from comprehensive cache for {mp_slug}: {e}")
         return []
 
 def update_votes_cache():
