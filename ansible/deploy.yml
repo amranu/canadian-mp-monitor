@@ -217,9 +217,41 @@
         path: "{{ app_dir }}/nginx/conf.d/initial.conf"
         state: absent
 
-    - name: Build and start all services
+    - name: Build and start backend first for initial setup
       shell: |
-        cd "{{ app_dir }}" && docker compose up --build -d
+        cd "{{ app_dir }}" && docker compose up --build -d backend
+      become_user: "{{ app_user }}"
+
+    - name: Wait for backend to be ready
+      wait_for:
+        port: 5000
+        delay: 10
+        timeout: 60
+
+    - name: Run initial cache setup - incremental update first
+      shell: |
+        cd "{{ app_dir }}" && docker compose exec -T backend python3 incremental_update.py
+      become_user: "{{ app_user }}"
+
+    - name: Run initial cache setup - fetch historical MPs
+      shell: |
+        cd "{{ app_dir }}" && docker compose exec -T backend python3 fetch_historical_mps.py
+      become_user: "{{ app_user }}"
+
+    - name: Run initial cache setup - cache MP voting records
+      shell: |
+        cd "{{ app_dir }}" && docker compose exec -T backend python3 cache_mp_voting_records.py
+      become_user: "{{ app_user }}"
+
+    - name: Setup cron jobs for cache updates
+      shell: |
+        cd "{{ app_dir }}" && docker compose exec -T backend chmod +x setup_cron.sh && docker compose exec -T backend ./setup_cron.sh
+      become_user: "{{ app_user }}"
+      ignore_errors: yes
+
+    - name: Start all remaining services
+      shell: |
+        cd "{{ app_dir }}" && docker compose up -d
       become_user: "{{ app_user }}"
 
     - name: Wait for services to be healthy
