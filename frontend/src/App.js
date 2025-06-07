@@ -1,8 +1,19 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import MPList from './components/MPList';
 import MPDetail from './components/MPDetail';
 import VoteDetails from './components/VoteDetails';
+
+// Component to scroll to top on route change
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
+}
 
 function App() {
   return (
@@ -21,6 +32,7 @@ function App() {
         </header>
         
         <main>
+          <ScrollToTop />
           <Routes>
             <Route path="/" element={<MPList />} />
             <Route path="/mp/:mpSlug" element={<MPDetail />} />

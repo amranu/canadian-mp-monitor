@@ -26,13 +26,6 @@ function VoteDetails() {
       console.log('Full vote URL:', voteUrl);
       const data = await parliamentApi.getVoteDetails(voteUrl);
       console.log('Vote details response:', data);
-      console.log('Party stats available:', !!data.party_stats);
-      console.log('Ballots available:', !!data.ballots, 'count:', data.ballots ? data.ballots.length : 0);
-      console.log('Data keys:', Object.keys(data));
-      if (data.party_stats) {
-        console.log('Party stats keys:', Object.keys(data.party_stats));
-        console.log('Sample party stats:', Object.entries(data.party_stats).slice(0, 2));
-      }
       setVoteDetails(data);
       // Create a vote object for the header display using the vote details data
       const voteData = data.vote || data; // Handle both nested and direct response formats
@@ -174,12 +167,6 @@ function VoteDetails() {
     
     sortedParties = [['All MPs', totalStats]];
   }
-    
-  console.log('Current voteDetails:', voteDetails);
-  console.log('voteDetails.party_stats:', voteDetails.party_stats);
-  console.log('voteDetails.party_votes:', voteDetails.party_votes);
-  console.log('sortedParties length:', sortedParties.length);
-  console.log('sortedParties:', sortedParties);
 
   return (
     <div style={{ padding: '20px' }}>
