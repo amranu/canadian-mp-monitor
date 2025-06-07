@@ -695,17 +695,10 @@ function MPDetail() {
         <div>
           <div style={{ marginBottom: '30px' }}>
             <h2 style={{ margin: '0 0 20px 0' }}>
-              {mp.name}'s Voting Record
-              {selectedSession !== 'all' && (
-                <span style={{ 
-                  fontSize: '18px', 
-                  color: '#007bff', 
-                  fontWeight: 'normal',
-                  marginLeft: '10px'
-                }}>
-                  - Session {selectedSession}
-                </span>
-              )}
+              {selectedSession === 'all' 
+                ? `${mp.name}'s Voting Record`
+                : `${mp.name}'s Voting Record for Session ${selectedSession}`
+              }
             </h2>
             
             {/* Session Selector */}
@@ -1005,7 +998,12 @@ function MPDetail() {
       {/* Statistics Tab */}
       {activeTab === 'statistics' && (
         <div>
-          <h2>{mp.name}'s Parliamentary Statistics</h2>
+          <h2>
+            {selectedSession === 'all' 
+              ? `${mp.name}'s Parliamentary Statistics`
+              : `${mp.name}'s Parliamentary Statistics for Session ${selectedSession}`
+            }
+          </h2>
           {renderStatistics()}
         </div>
       )}
