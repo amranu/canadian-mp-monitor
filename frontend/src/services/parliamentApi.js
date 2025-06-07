@@ -280,5 +280,33 @@ export const parliamentApi = {
       objects: filteredBills,
       total_count: filteredBills.length
     };
+  },
+
+  async getBillVotes(session, number) {
+    const billPath = `${session}/${number}`;
+    const cacheKey = `bill-votes-${billPath}`;
+    
+    // Check cache first
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+    
+    const url = `${API_BASE}/bills/${billPath}/votes`;
+    console.log('Fetching bill votes from:', url);
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Bill votes loaded:', data);
+    
+    // Cache the response
+    cache.set(cacheKey, data);
+    
+    return data;
   }
 };

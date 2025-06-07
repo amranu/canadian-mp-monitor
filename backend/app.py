@@ -1234,6 +1234,79 @@ def get_bill(bill_path):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/bills/<path:bill_path>/votes')
+def get_bill_votes(bill_path):
+    """Get all votes related to a specific bill"""
+    try:
+        # Extract session and number from path like "44-1/C-1" 
+        path_parts = bill_path.split('/')
+        if len(path_parts) != 2:
+            return jsonify({'error': 'Invalid bill path format. Expected: session/number'}), 400
+            
+        session, number = path_parts
+        bill_url = f"/bills/{session}/{number}/"
+        
+        # Search through all cached vote details for this bill
+        if not os.path.exists(VOTE_CACHE_INDEX_FILE):
+            return jsonify({
+                'objects': [],
+                'message': 'Vote cache index not available'
+            })
+            
+        with open(VOTE_CACHE_INDEX_FILE, 'r') as f:
+            index_data = json.load(f)
+        
+        cached_votes = index_data.get('cached_votes', {})
+        bill_votes = []
+        
+        # Check each cached vote for this bill URL
+        for vote_id, vote_info in cached_votes.items():
+            try:
+                # Load the detailed vote cache file
+                vote_cache_file = os.path.join(VOTE_DETAILS_CACHE_DIR, f'{vote_id}.json')
+                if os.path.exists(vote_cache_file):
+                    with open(vote_cache_file, 'r') as f:
+                        vote_details = json.load(f)
+                    
+                    vote_data = vote_details.get('vote', {})
+                    
+                    # Check if this vote is for our bill
+                    if vote_data.get('bill_url') == bill_url:
+                        # Build vote record with proper structure
+                        vote_record = {
+                            'url': vote_data.get('url', ''),
+                            'date': vote_data.get('date', ''),
+                            'number': vote_data.get('number', ''),
+                            'session': vote_data.get('session', ''),
+                            'result': vote_data.get('result', ''),
+                            'description': vote_data.get('description', {}),
+                            'bill_url': vote_data.get('bill_url'),
+                            'yea_total': vote_data.get('yea_total', 0),
+                            'nay_total': vote_data.get('nay_total', 0),
+                            'paired_total': vote_data.get('paired_total', 0)
+                        }
+                        bill_votes.append(vote_record)
+                        
+            except Exception as e:
+                print(f"Error processing vote {vote_id} for bill {bill_url}: {e}")
+                continue
+        
+        # Sort by date descending
+        bill_votes.sort(key=lambda x: x.get('date', ''), reverse=True)
+        
+        print(f"[{datetime.now()}] Found {len(bill_votes)} votes for bill {bill_url}")
+        
+        return jsonify({
+            'objects': bill_votes,
+            'total_count': len(bill_votes),
+            'bill_url': bill_url,
+            'bill_path': bill_path
+        })
+        
+    except Exception as e:
+        print(f"[{datetime.now()}] Error getting votes for bill {bill_path}: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/reload-historical-mps', methods=['POST'])
 def reload_historical_mps():
     """Reload historical MP data from cache file"""

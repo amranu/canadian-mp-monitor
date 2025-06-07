@@ -31,56 +31,15 @@ function BillDetail() {
     try {
       setLoadingVotes(true);
       
-      const billUrl = `/bills/${session}/${number}/`;
-      let allRelatedVotes = [];
-      let offset = 0;
-      const limit = 200;
-      let hasMoreVotes = true;
+      // Use the dedicated bill votes API endpoint
+      const data = await parliamentApi.getBillVotes(session, number);
       
-      // Search through multiple pages of votes to find all related ones
-      while (hasMoreVotes && offset < 2000) { // Limit search to prevent infinite loops
-        try {
-          const votesData = await parliamentApi.getVotes(limit, offset);
-          
-          if (!votesData.objects || votesData.objects.length === 0) {
-            hasMoreVotes = false;
-            break;
-          }
-          
-          // Filter for votes related to this bill
-          const related = votesData.objects.filter(vote => vote.bill_url === billUrl);
-          allRelatedVotes.push(...related);
-          
-          // If we found related votes, continue searching (bills can have multiple votes)
-          // Otherwise, if no related votes in this batch and we've searched enough, stop
-          if (related.length === 0 && offset > 600) {
-            // If no matches in recent votes and we've searched far enough, stop
-            hasMoreVotes = false;
-          } else {
-            offset += limit;
-            // Check if there are more votes to fetch
-            hasMoreVotes = votesData.objects.length === limit;
-          }
-          
-          // Small delay to avoid overwhelming the API
-          if (hasMoreVotes) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-          }
-          
-        } catch (error) {
-          console.error('Error loading votes batch:', error);
-          hasMoreVotes = false;
-        }
-      }
-      
-      // Sort related votes by date (most recent first)
-      allRelatedVotes.sort((a, b) => new Date(b.date) - new Date(a.date));
-      
-      setRelatedVotes(allRelatedVotes);
-      console.log(`Found ${allRelatedVotes.length} related votes for bill ${billUrl}`);
+      setRelatedVotes(data.objects || []);
+      console.log(`Found ${data.objects?.length || 0} related votes for bill ${session}/${number}`);
       
     } catch (error) {
       console.error('Error loading related votes:', error);
+      setRelatedVotes([]);
     } finally {
       setLoadingVotes(false);
     }
