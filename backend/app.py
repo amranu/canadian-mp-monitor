@@ -1168,6 +1168,12 @@ def get_bills():
             filtered_bills = [bill for bill in filtered_bills 
                             if bill.get('sponsor_politician_url') == sponsor_url]
         
+        # Sort bills by session (descending) and then by introduced date (descending)
+        filtered_bills.sort(key=lambda x: (
+            x.get('session', ''), 
+            x.get('introduced', '')
+        ), reverse=True)
+        
         # Apply pagination
         paginated_bills = filtered_bills[offset:offset + limit]
         
