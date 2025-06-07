@@ -528,8 +528,41 @@ def get_vote_details(vote_path):
         print(f"[{datetime.now()}] Error serving vote details for {vote_path}: {e}")
         return jsonify({'error': str(e)}), 500
 
-def load_recent_votes():
-    """Load recent votes from the API"""
+def load_comprehensive_votes():
+    """Load all cached votes from the comprehensive cache"""
+    try:
+        # Try to load from comprehensive cache first
+        if os.path.exists(VOTE_CACHE_INDEX_FILE):
+            with open(VOTE_CACHE_INDEX_FILE, 'r') as f:
+                index_data = json.load(f)
+            
+            # Extract vote list from cached votes
+            cached_votes = index_data.get('cached_votes', {})
+            all_votes = []
+            
+            # Convert cached vote index to vote objects
+            for vote_id, vote_info in cached_votes.items():
+                # Parse vote_id (format: "44-1_928")
+                if '_' in vote_id:
+                    session, number = vote_id.split('_', 1)
+                    vote_obj = {
+                        'url': vote_info['url'],
+                        'session': session,
+                        'number': int(number),
+                        'id': vote_id
+                    }
+                    all_votes.append(vote_obj)
+            
+            # Sort by session and number (newest first)
+            all_votes.sort(key=lambda x: (x['session'], x['number']), reverse=True)
+            
+            print(f"Loaded {len(all_votes)} votes from comprehensive cache")
+            return all_votes
+            
+    except Exception as e:
+        print(f"Error loading comprehensive votes cache: {e}")
+    
+    # Fallback to recent votes API if comprehensive cache fails
     try:
         response = requests.get(
             f'{PARLIAMENT_API_BASE}/votes/',
@@ -539,7 +572,7 @@ def load_recent_votes():
         response.raise_for_status()
         return response.json()['objects']
     except Exception as e:
-        print(f"Error loading votes: {e}")
+        print(f"Error loading votes from API: {e}")
         return []
 
 def update_votes_cache():
@@ -549,22 +582,23 @@ def update_votes_cache():
             return False
             
         cache['votes']['loading'] = True
-        print(f"[{datetime.now()}] Loading votes from API...")
+        print(f"[{datetime.now()}] Loading votes from comprehensive cache...")
         
-        recent_votes = load_recent_votes()
+        comprehensive_votes = load_comprehensive_votes()
         
-        cache['votes']['data'] = recent_votes
+        cache['votes']['data'] = comprehensive_votes
         cache['votes']['expires'] = time.time() + CACHE_DURATION
         cache['votes']['loading'] = False
         
         # Save to file
         save_cache_to_file({
-            'data': recent_votes,
+            'data': comprehensive_votes,
             'expires': cache['votes']['expires'],
-            'updated': datetime.now().isoformat()
+            'updated': datetime.now().isoformat(),
+            'count': len(comprehensive_votes)
         }, VOTES_CACHE_FILE)
         
-        print(f"[{datetime.now()}] Cached {len(recent_votes)} votes")
+        print(f"[{datetime.now()}] Cached {len(comprehensive_votes)} votes from comprehensive cache")
         
         # Start background caching of MP votes
         start_background_mp_votes_caching()
