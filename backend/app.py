@@ -28,6 +28,7 @@ HISTORICAL_MPS_FILE = os.path.join(CACHE_DIR, 'historical_mps.json')
 VOTE_DETAILS_CACHE_DIR = os.path.join(CACHE_DIR, 'vote_details')
 VOTE_CACHE_INDEX_FILE = os.path.join(CACHE_DIR, 'vote_cache_index.json')
 BILLS_CACHE_FILE = os.path.join(CACHE_DIR, 'bills.json')
+BILLS_WITH_VOTES_INDEX_FILE = os.path.join(CACHE_DIR, 'bills_with_votes_index.json')
 
 # Ensure cache directories exist
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -416,6 +417,48 @@ def load_all_bills():
     
     return all_bills
 
+def build_bills_with_votes_index():
+    """Build pre-computed index of bills that have votes"""
+    try:
+        print(f"[{datetime.now()}] Building bills with votes index...")
+        bills_with_votes = set()
+        
+        if os.path.exists(VOTE_CACHE_INDEX_FILE):
+            with open(VOTE_CACHE_INDEX_FILE, 'r') as f:
+                index_data = json.load(f)
+            
+            cached_votes = index_data.get('cached_votes', {})
+            
+            # Check each cached vote for bill associations
+            for vote_id, vote_info in cached_votes.items():
+                try:
+                    vote_cache_file = os.path.join(VOTE_DETAILS_CACHE_DIR, f'{vote_id}.json')
+                    if os.path.exists(vote_cache_file):
+                        with open(vote_cache_file, 'r') as f:
+                            vote_details = json.load(f)
+                        
+                        vote_data = vote_details.get('vote', {})
+                        bill_url = vote_data.get('bill_url')
+                        if bill_url:
+                            bills_with_votes.add(bill_url)
+                except Exception:
+                    continue
+        
+        # Save the index
+        index_data = {
+            'bills_with_votes': list(bills_with_votes),
+            'updated': datetime.now().isoformat(),
+            'count': len(bills_with_votes)
+        }
+        
+        save_cache_to_file(index_data, BILLS_WITH_VOTES_INDEX_FILE)
+        print(f"[{datetime.now()}] Built index with {len(bills_with_votes)} bills that have votes")
+        return bills_with_votes
+        
+    except Exception as e:
+        print(f"[{datetime.now()}] Error building bills with votes index: {e}")
+        return set()
+
 def update_bills_cache():
     """Update the bills cache"""
     try:
@@ -437,6 +480,9 @@ def update_bills_cache():
             'expires': cache['bills']['expires'],
             'updated': datetime.now().isoformat()
         }, BILLS_CACHE_FILE)
+        
+        # Build the bills with votes index
+        build_bills_with_votes_index()
         
         print(f"[{datetime.now()}] Cached {len(all_bills)} bills")
         return True
@@ -1205,32 +1251,21 @@ def get_bills():
                                 if bill.get('number', '').startswith('C-')]
         
         if has_votes and has_votes.lower() == 'true':
-            # Filter for bills that have votes - check if bill URL exists in vote cache
+            # Use pre-computed index for fast filtering
             bills_with_votes = set()
-            if os.path.exists(VOTE_CACHE_INDEX_FILE):
+            if os.path.exists(BILLS_WITH_VOTES_INDEX_FILE):
                 try:
-                    with open(VOTE_CACHE_INDEX_FILE, 'r') as f:
+                    with open(BILLS_WITH_VOTES_INDEX_FILE, 'r') as f:
                         index_data = json.load(f)
-                    
-                    cached_votes = index_data.get('cached_votes', {})
-                    
-                    # Check each cached vote for bill associations
-                    for vote_id, vote_info in cached_votes.items():
-                        try:
-                            vote_cache_file = os.path.join(VOTE_DETAILS_CACHE_DIR, f'{vote_id}.json')
-                            if os.path.exists(vote_cache_file):
-                                with open(vote_cache_file, 'r') as f:
-                                    vote_details = json.load(f)
-                                
-                                vote_data = vote_details.get('vote', {})
-                                bill_url = vote_data.get('bill_url')
-                                if bill_url:
-                                    bills_with_votes.add(bill_url)
-                        except Exception:
-                            continue
-                            
+                    bills_with_votes = set(index_data.get('bills_with_votes', []))
+                    print(f"[{datetime.now()}] Loaded bills with votes index: {len(bills_with_votes)} bills")
                 except Exception as e:
-                    print(f"Error loading vote cache for bills filter: {e}")
+                    print(f"[{datetime.now()}] Error loading bills with votes index: {e}")
+                    # Fallback to building index on-demand
+                    bills_with_votes = build_bills_with_votes_index()
+            else:
+                # Build index if it doesn't exist
+                bills_with_votes = build_bills_with_votes_index()
             
             # Filter bills to only those with votes
             filtered_bills = [bill for bill in filtered_bills 

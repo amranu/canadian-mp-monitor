@@ -24,6 +24,9 @@ CACHE_DIR = 'cache'
 POLITICIANS_CACHE_FILE = os.path.join(CACHE_DIR, 'politicians.json')
 VOTES_CACHE_FILE = os.path.join(CACHE_DIR, 'votes.json')
 BILLS_CACHE_FILE = os.path.join(CACHE_DIR, 'bills.json')
+BILLS_WITH_VOTES_INDEX_FILE = os.path.join(CACHE_DIR, 'bills_with_votes_index.json')
+VOTE_DETAILS_CACHE_DIR = os.path.join(CACHE_DIR, 'vote_details')
+VOTE_CACHE_INDEX_FILE = os.path.join(CACHE_DIR, 'vote_cache_index.json')
 MP_VOTES_CACHE_DIR = os.path.join(CACHE_DIR, 'mp_votes')
 
 def log(message):
@@ -33,6 +36,7 @@ def ensure_cache_dirs():
     """Ensure cache directories exist"""
     os.makedirs(CACHE_DIR, exist_ok=True)
     os.makedirs(MP_VOTES_CACHE_DIR, exist_ok=True)
+    os.makedirs(VOTE_DETAILS_CACHE_DIR, exist_ok=True)
 
 def save_cache_to_file(data, cache_file):
     """Save cache data to JSON file"""
@@ -210,6 +214,50 @@ def load_all_bills():
     
     return all_bills
 
+def build_bills_with_votes_index():
+    """Build pre-computed index of bills that have votes"""
+    try:
+        log("Building bills with votes index...")
+        bills_with_votes = set()
+        
+        if os.path.exists(VOTE_CACHE_INDEX_FILE):
+            with open(VOTE_CACHE_INDEX_FILE, 'r') as f:
+                index_data = json.load(f)
+            
+            cached_votes = index_data.get('cached_votes', {})
+            
+            # Check each cached vote for bill associations
+            for vote_id, vote_info in cached_votes.items():
+                try:
+                    vote_cache_file = os.path.join(VOTE_DETAILS_CACHE_DIR, f'{vote_id}.json')
+                    if os.path.exists(vote_cache_file):
+                        with open(vote_cache_file, 'r') as f:
+                            vote_details = json.load(f)
+                        
+                        vote_data = vote_details.get('vote', {})
+                        bill_url = vote_data.get('bill_url')
+                        if bill_url:
+                            bills_with_votes.add(bill_url)
+                except Exception:
+                    continue
+        
+        # Save the index
+        index_data = {
+            'bills_with_votes': list(bills_with_votes),
+            'updated': datetime.now().isoformat(),
+            'count': len(bills_with_votes)
+        }
+        
+        if save_cache_to_file(index_data, BILLS_WITH_VOTES_INDEX_FILE):
+            log(f"Built index with {len(bills_with_votes)} bills that have votes")
+            return True
+        
+        return False
+        
+    except Exception as e:
+        log(f"Error building bills with votes index: {e}")
+        return False
+
 def update_politicians_cache():
     """Update politicians cache"""
     log("=== Updating Politicians Cache ===")
@@ -265,6 +313,10 @@ def update_bills_cache():
         
         if save_cache_to_file(cache_data, BILLS_CACHE_FILE):
             log(f"Successfully cached {len(bills)} bills")
+            
+            # Build the bills with votes index
+            build_bills_with_votes_index()
+            
             return True
     
     log("Failed to update bills cache")
