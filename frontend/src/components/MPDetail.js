@@ -742,10 +742,10 @@ function MPDetail() {
                     fontFamily: 'inherit'
                   }}
                 >
-                  <option value="all">All Sessions</option>
+                  <option value="all">All</option>
                   {availableSessions.map(session => (
                     <option key={session} value={session}>
-                      Session {session}
+                      {session}
                     </option>
                   ))}
                 </select>
@@ -766,11 +766,6 @@ function MPDetail() {
                 {selectedSession !== 'all' && ` from Session ${selectedSession}`}. 
                 {votes.length > 0 && <span style={{ color: '#0969da' }}> Click any vote to see detailed party statistics and all MP votes.</span>}
               </>
-            )}
-            {selectedSession !== 'all' && hasMoreVotes && loadingMoreVotes && (
-              <span style={{ color: '#007bff', fontStyle: 'italic' }}>
-                <br />Loading complete session data...
-              </span>
             )}
           </p>
         
@@ -995,12 +990,56 @@ function MPDetail() {
       {/* Statistics Tab */}
       {activeTab === 'statistics' && (
         <div>
-          <h2>
-            {selectedSession === 'all' 
-              ? `${mp.name}'s Parliamentary Statistics`
-              : `${mp.name}'s Parliamentary Statistics for Session ${selectedSession}`
-            }
-          </h2>
+          <div style={{ marginBottom: '30px' }}>
+            <h2 style={{ margin: '0 0 20px 0' }}>
+              {selectedSession === 'all' 
+                ? `${mp.name}'s Parliamentary Statistics`
+                : `${mp.name}'s Parliamentary Statistics for Session ${selectedSession}`
+              }
+            </h2>
+            
+            {/* Session Selector */}
+            {availableSessions.length > 1 && (
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '15px', 
+                marginBottom: '25px',
+                flexWrap: 'wrap'
+              }}>
+                <label style={{ 
+                  fontSize: '14px', 
+                  color: '#666', 
+                  fontWeight: '500',
+                  minWidth: 'fit-content'
+                }}>
+                  Session:
+                </label>
+                <select
+                  value={selectedSession}
+                  onChange={(e) => setSelectedSession(e.target.value)}
+                  style={{
+                    padding: '8px 12px',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    backgroundColor: 'white',
+                    fontSize: '14px',
+                    color: '#333',
+                    cursor: 'pointer',
+                    outline: 'none',
+                    fontFamily: 'inherit'
+                  }}
+                >
+                  <option value="all">All</option>
+                  {availableSessions.map(session => (
+                    <option key={session} value={session}>
+                      {session}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
           {renderStatistics()}
         </div>
       )}
