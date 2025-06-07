@@ -38,12 +38,12 @@ function MPDetail() {
 
   // Load all votes when a specific session is selected
   useEffect(() => {
-    if (selectedSession !== 'all' && selectedSession !== 'current' && mp && hasMoreVotes && !loadingMoreVotes) {
-      // When a specific session is selected, automatically load more votes to get complete session data
-      console.log(`Auto-loading more votes for Session ${selectedSession}`);
-      loadMoreVotes();
+    if (selectedSession !== 'all' && selectedSession !== 'current' && mp && !loadingMoreVotes) {
+      // When a specific session is selected, load all available votes for that MP
+      console.log(`Loading all votes for MP when Session ${selectedSession} is selected`);
+      loadAllVotesForMP();
     }
-  }, [selectedSession, hasMoreVotes, loadingMoreVotes]);
+  }, [selectedSession, mp]);
 
   // Filter votes by selected session
   const getFilteredVotes = () => {
@@ -233,6 +233,34 @@ function MPDetail() {
     }
   };
 
+  const loadAllVotesForMP = async () => {
+    if (!mp || loadingMoreVotes) return;
+    
+    try {
+      setLoadingMoreVotes(true);
+      const mpUrl = `/politicians/${mpSlug}/`;
+      
+      // Load ALL votes for this MP (up to 1000)
+      const data = await parliamentApi.getMPVotes(mpUrl, 1000, 0);
+      
+      if (data.objects && data.objects.length > 0) {
+        console.log(`Loaded ${data.objects.length} total votes for ${mpSlug}`);
+        setVotes(data.objects);
+        setVotesOffset(data.objects.length);
+        setHasMoreVotes(data.has_more || false);
+        
+        // Update hasSpecificVotes if we find MP ballot data
+        if (data.objects.some(vote => vote.mp_ballot)) {
+          setHasSpecificVotes(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading all MP votes:', error);
+    } finally {
+      setLoadingMoreVotes(false);
+    }
+  };
+
   const loadMoreVotes = async () => {
     if (!mp || loadingMoreVotes || !hasMoreVotes) return;
     
@@ -299,7 +327,7 @@ function MPDetail() {
         }
       }
       
-      const data = await parliamentApi.getMPVotes(mpUrl, 1000);
+      const data = await parliamentApi.getMPVotes(mpUrl, 1000, 0);
       
       // Check if votes are being loaded in background
       if (data.loading && retryCount < 20) {
