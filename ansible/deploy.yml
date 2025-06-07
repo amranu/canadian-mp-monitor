@@ -179,6 +179,11 @@
         delay: 10
         timeout: 60
 
+    - name: Remove any existing ssl files
+      file:
+        path: "{{ app_dir }}/ssl"
+        state: absent
+
     - name: Create self-signed SSL certificate directory
       file:
         path: "{{ app_dir }}/ssl"
@@ -189,11 +194,12 @@
 
     - name: Generate self-signed SSL certificate
       shell: |
+        cd {{ app_dir }}/ssl
         openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
-          -keyout {{ app_dir }}/ssl/privkey.pem \
-          -out {{ app_dir }}/ssl/fullchain.pem \
+          -keyout privkey.pem \
+          -out fullchain.pem \
           -subj "/C=CA/ST=Ontario/L=Ottawa/O=MP Monitor/CN={{ domain_name }}"
-        chown {{ app_user }}:{{ app_user }} {{ app_dir }}/ssl/*.pem
+        chown {{ app_user }}:{{ app_user }} *.pem
       become: yes
 
     - name: Stop nginx
