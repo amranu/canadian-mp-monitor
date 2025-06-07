@@ -8,6 +8,8 @@ function Bills() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sessionFilter, setSessionFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [hasVotesFilter, setHasVotesFilter] = useState(false);
   const [availableSessions, setAvailableSessions] = useState([]);
   const [hasMore, setHasMore] = useState(true);
   const [offset, setOffset] = useState(0);
@@ -15,7 +17,7 @@ function Bills() {
 
   useEffect(() => {
     loadBills();
-  }, [sessionFilter]);
+  }, [sessionFilter, typeFilter, hasVotesFilter]);
 
   const loadBills = async (resetOffset = true) => {
     try {
@@ -25,6 +27,12 @@ function Bills() {
       const filters = {};
       if (sessionFilter) {
         filters.session = sessionFilter;
+      }
+      if (typeFilter) {
+        filters.type = typeFilter;
+      }
+      if (hasVotesFilter) {
+        filters.has_votes = 'true';
       }
 
       const data = await parliamentApi.getBills(50, newOffset, filters);
@@ -69,6 +77,12 @@ function Bills() {
       const filters = {};
       if (sessionFilter) {
         filters.session = sessionFilter;
+      }
+      if (typeFilter) {
+        filters.type = typeFilter;
+      }
+      if (hasVotesFilter) {
+        filters.has_votes = 'true';
       }
       
       const data = await parliamentApi.searchBills(searchQuery, filters);
@@ -181,29 +195,78 @@ function Bills() {
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <label style={{ fontSize: '14px', color: '#666', fontWeight: '500' }}>
-              Session:
-            </label>
-            <select
-              value={sessionFilter}
-              onChange={(e) => setSessionFilter(e.target.value)}
-              style={{
-                padding: '8px 12px',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                backgroundColor: 'white',
-                fontSize: '14px',
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <label style={{ fontSize: '14px', color: '#666', fontWeight: '500' }}>
+                Session:
+              </label>
+              <select
+                value={sessionFilter}
+                onChange={(e) => setSessionFilter(e.target.value)}
+                style={{
+                  padding: '8px 12px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  backgroundColor: 'white',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="">All Sessions</option>
+                {availableSessions.map(session => (
+                  <option key={session} value={session}>
+                    {session}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <label style={{ fontSize: '14px', color: '#666', fontWeight: '500' }}>
+                Type:
+              </label>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                style={{
+                  padding: '8px 12px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  backgroundColor: 'white',
+                  fontSize: '14px',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="">All Types</option>
+                <option value="C">Government Bills (C-)</option>
+                <option value="S">Senate Bills (S-)</option>
+                <option value="M">Private Member Motions (M-)</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <label style={{ 
+                fontSize: '14px', 
+                color: '#666', 
+                fontWeight: '500',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
                 cursor: 'pointer'
-              }}
-            >
-              <option value="">All Sessions</option>
-              {availableSessions.map(session => (
-                <option key={session} value={session}>
-                  {session}
-                </option>
-              ))}
-            </select>
+              }}>
+                <input
+                  type="checkbox"
+                  checked={hasVotesFilter}
+                  onChange={(e) => setHasVotesFilter(e.target.checked)}
+                  style={{
+                    width: '16px',
+                    height: '16px',
+                    cursor: 'pointer'
+                  }}
+                />
+                Bills with votes only
+              </label>
+            </div>
           </div>
         </div>
 
@@ -216,7 +279,12 @@ function Bills() {
           {searchQuery ? (
             <>Showing {bills.length} search results for "{searchQuery}"</>
           ) : (
-            <>Showing {bills.length} of {totalCount} bills{sessionFilter && ` from session ${sessionFilter}`}</>
+            <>
+              Showing {bills.length} of {totalCount} bills
+              {sessionFilter && ` from session ${sessionFilter}`}
+              {typeFilter && ` (${typeFilter === 'C' ? 'Government' : typeFilter === 'S' ? 'Senate' : 'Private Member'} bills)`}
+              {hasVotesFilter && ` with votes`}
+            </>
           )}
         </div>
       </div>

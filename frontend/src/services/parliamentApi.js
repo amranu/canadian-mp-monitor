@@ -211,6 +211,14 @@ export const parliamentApi = {
       params.append('sponsor', filters.sponsor);
     }
     
+    if (filters.type) {
+      params.append('type', filters.type);
+    }
+    
+    if (filters.has_votes) {
+      params.append('has_votes', filters.has_votes);
+    }
+    
     const url = `${API_BASE}/bills?${params.toString()}`;
     console.log('Fetching bills from:', url);
     

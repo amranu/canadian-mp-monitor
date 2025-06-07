@@ -1147,6 +1147,8 @@ def get_bills():
     offset = int(request.args.get('offset', 0))
     session = request.args.get('session')  # Optional session filter
     sponsor = request.args.get('sponsor')  # Optional sponsor filter
+    bill_type = request.args.get('type')  # Optional bill type filter (C, S, M)
+    has_votes = request.args.get('has_votes')  # Optional filter for bills with votes
     
     try:
         # Check if cache is valid
@@ -1167,6 +1169,43 @@ def get_bills():
             sponsor_url = f'/politicians/{sponsor}/'
             filtered_bills = [bill for bill in filtered_bills 
                             if bill.get('sponsor_politician_url') == sponsor_url]
+        
+        if bill_type:
+            # Filter by bill type (C, S, M)
+            filtered_bills = [bill for bill in filtered_bills 
+                            if bill.get('number', '').startswith(f'{bill_type}-')]
+        
+        if has_votes and has_votes.lower() == 'true':
+            # Filter for bills that have votes - check if bill URL exists in vote cache
+            bills_with_votes = set()
+            if os.path.exists(VOTE_CACHE_INDEX_FILE):
+                try:
+                    with open(VOTE_CACHE_INDEX_FILE, 'r') as f:
+                        index_data = json.load(f)
+                    
+                    cached_votes = index_data.get('cached_votes', {})
+                    
+                    # Check each cached vote for bill associations
+                    for vote_id, vote_info in cached_votes.items():
+                        try:
+                            vote_cache_file = os.path.join(VOTE_DETAILS_CACHE_DIR, f'{vote_id}.json')
+                            if os.path.exists(vote_cache_file):
+                                with open(vote_cache_file, 'r') as f:
+                                    vote_details = json.load(f)
+                                
+                                vote_data = vote_details.get('vote', {})
+                                bill_url = vote_data.get('bill_url')
+                                if bill_url:
+                                    bills_with_votes.add(bill_url)
+                        except Exception:
+                            continue
+                            
+                except Exception as e:
+                    print(f"Error loading vote cache for bills filter: {e}")
+            
+            # Filter bills to only those with votes
+            filtered_bills = [bill for bill in filtered_bills 
+                            if bill.get('url') in bills_with_votes]
         
         # Sort bills by session (descending) and then by introduced date (descending)
         filtered_bills.sort(key=lambda x: (
@@ -1193,7 +1232,9 @@ def get_bills():
             'total_count': len(filtered_bills),
             'filters_applied': {
                 'session': session,
-                'sponsor': sponsor
+                'sponsor': sponsor,
+                'type': bill_type,
+                'has_votes': has_votes
             }
         })
         
