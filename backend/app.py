@@ -677,7 +677,7 @@ def get_mp_voting_records_from_api(mp_slug, limit=20, offset=0):
                 future_to_ballot = {}
                 
                 for j, vote_url in enumerate(batch_urls):
-                    ballot = ballots_data['objects'][i + j]
+                    ballot = all_ballots[i + j]
                     future = executor.submit(fetch_vote_details, vote_url, ballot['ballot'])
                     future_to_ballot[future] = ballot
                 
@@ -706,23 +706,47 @@ def get_mp_voting_records_from_api(mp_slug, limit=20, offset=0):
 def get_mp_voting_records(mp_slug, limit=300):
     """Get voting records for a specific MP"""
     try:
-        # Get all ballots for this politician
-        response = requests.get(
-            f'{PARLIAMENT_API_BASE}/votes/ballots/',
-            params={
-                'politician': f'/politicians/{mp_slug}/',
-                'limit': limit,  # Now supports up to 300
-                'offset': 0
-            },
-            headers=HEADERS,
-            timeout=30
-        )
-        response.raise_for_status()
-        ballots_data = response.json()
+        # Get all ballots for this politician with pagination
+        all_ballots = []
+        offset = 0
+        limit_per_request = 100  # API seems to limit to 100 per request
+        
+        while True:
+            response = requests.get(
+                f'{PARLIAMENT_API_BASE}/votes/ballots/',
+                params={
+                    'politician': f'/politicians/{mp_slug}/',
+                    'limit': limit_per_request,
+                    'offset': offset
+                },
+                headers=HEADERS,
+                timeout=30
+            )
+            response.raise_for_status()
+            ballots_data = response.json()
+            
+            ballots = ballots_data.get('objects', [])
+            if not ballots:
+                break
+                
+            all_ballots.extend(ballots)
+            
+            # Stop if we have enough votes or if we got fewer than requested (last page)
+            if len(ballots) < limit_per_request or len(all_ballots) >= limit:
+                break
+                
+            offset += limit_per_request
+            time.sleep(0.1)  # Be nice to the API
+        
+        # Limit to requested amount
+        if len(all_ballots) > limit:
+            all_ballots = all_ballots[:limit]
+        
+        print(f"[{datetime.now()}] Fetched {len(all_ballots)} ballots for {mp_slug}")
         
         # For each ballot, get the vote details (batch process)
         votes_with_ballots = []
-        vote_urls = [ballot['vote_url'] for ballot in ballots_data['objects']]
+        vote_urls = [ballot['vote_url'] for ballot in all_ballots]
         
         # Process votes in smaller batches to avoid overwhelming the API
         batch_size = 5
@@ -783,7 +807,7 @@ def cache_mp_votes_background(mp_slug):
         cache['mp_votes'][mp_slug] = {'loading': True, 'data': None, 'expires': 0}
         
         print(f"[{datetime.now()}] Background caching votes for {mp_slug}")
-        votes = get_mp_voting_records(mp_slug, 300)  # Increased from 100 to 300 for better session coverage
+        votes = get_mp_voting_records(mp_slug, 1000)  # Increased to 1000 to capture all session 44-1 votes (928 total)
         
         expires_time = time.time() + CACHE_DURATION
         cache['mp_votes'][mp_slug] = {
