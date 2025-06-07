@@ -114,88 +114,11 @@ function MPDetail() {
     const yesOnPassedBills = votesOnPassedBills.filter(v => v.mp_ballot === 'Yes').length;
     const noOnFailedBills = votesOnFailedBills.filter(v => v.mp_ballot === 'No').length;
     
-    // Party line voting calculation using improved heuristics for all parties
-    // This estimates how often the MP votes with their party's expected position
-    let partyLineVotes = 0;
-    let totalPartyLineEligible = 0;
-    
-    votesWithBallot.forEach(vote => {
-      // Skip if we don't have clear yes/no vote
-      if (vote.mp_ballot !== 'Yes' && vote.mp_ballot !== 'No') return;
-      
-      totalPartyLineEligible++;
-      
-      const votedYes = vote.mp_ballot === 'Yes';
-      const billPassed = vote.result === 'Passed';
-      const voteMargin = vote.yea_total - vote.nay_total;
-      const isCloseVote = Math.abs(voteMargin) < 30;
-      const isLandslideVote = Math.abs(voteMargin) > 80;
-      
-      // Determine if MP likely voted with their party based on party and vote characteristics
-      let votedWithParty = false;
-      
-      if (mpParty === 'Liberal') {
-        // Government party: usually supports government bills, especially those that pass
-        if (votedYes && billPassed) {
-          votedWithParty = true; // Supported successful government initiative
-        } else if (!votedYes && !billPassed) {
-          votedWithParty = true; // Opposed failed bill (rare but consistent)
-        } else if (votedYes && !billPassed && isCloseVote) {
-          votedWithParty = true; // Supported government bill that narrowly failed
-        }
-      } else if (mpParty === 'Conservative') {
-        // Main opposition: usually opposes government bills but supports popular measures
-        if (!votedYes && billPassed && !isLandslideVote) {
-          votedWithParty = true; // Opposed government bill (typical Conservative position)
-        } else if (!votedYes && !billPassed) {
-          votedWithParty = true; // Opposed bill that failed
-        } else if (votedYes && billPassed && isLandslideVote) {
-          votedWithParty = true; // Supported popular bipartisan measure
-        }
-      } else if (mpParty === 'NDP') {
-        // Social democratic opposition: often supports progressive bills, opposes conservative ones
-        if (votedYes && billPassed && voteMargin > 0) {
-          votedWithParty = true; // Supported progressive/social policy that passed
-        } else if (!votedYes && !billPassed) {
-          votedWithParty = true; // Opposed conservative bill that failed
-        } else if (!votedYes && billPassed && isCloseVote) {
-          votedWithParty = true; // Opposed government bill on principle
-        }
-      } else if (mpParty === 'Bloc' || mpParty === 'Bloc Québécois') {
-        // Quebec-focused party: supports measures benefiting Quebec, opposes those that don't
-        if (!votedYes && billPassed && !isLandslideVote) {
-          votedWithParty = true; // Opposed non-Quebec focused bill
-        } else if (votedYes && billPassed && isLandslideVote) {
-          votedWithParty = true; // Supported popular measure
-        } else if (!votedYes && !billPassed) {
-          votedWithParty = true; // Opposed bill that failed
-        }
-      } else if (mpParty === 'Green') {
-        // Environmental focus: supports environmental bills, opposes harmful ones
-        if (votedYes && billPassed) {
-          votedWithParty = true; // Supported progressive/environmental policy
-        } else if (!votedYes && !billPassed) {
-          votedWithParty = true; // Opposed harmful policy that failed
-        }
-      } else {
-        // Independent or other parties: assume they vote based on personal conviction
-        // Give them benefit of doubt for party line voting
-        votedWithParty = true;
-      }
-      
-      if (votedWithParty) {
-        partyLineVotes++;
-      }
-    });
-    
-    const partyLinePercentage = totalPartyLineEligible > 0 ? 
-      (partyLineVotes / totalPartyLineEligible) * 100 : 0;
     
     return {
       totalVotes,
       participationRate,
       successRate,
-      partyLinePercentage,
       voteBreakdown: {
         yes: yesVotes,
         no: noVotes,
@@ -514,30 +437,11 @@ function MPDetail() {
           }}>
             <h3 style={{ margin: '0 0 15px 0', color: '#495057' }}>Party Line Voting</h3>
             
-            {/* Heuristic-based calculation */}
-            <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '6px' }}>
-              <div style={{ fontSize: '14px', color: '#6c757d', marginBottom: '10px' }}>
-                <strong>Estimated (Heuristic-based):</strong>
-              </div>
-              <div style={{ 
-                fontSize: '24px', 
-                fontWeight: 'bold', 
-                color: stats.partyLinePercentage >= 80 ? '#28a745' : 
-                       stats.partyLinePercentage >= 60 ? '#ffc107' : '#dc3545',
-                textAlign: 'center'
-              }}>
-                {Math.round(stats.partyLinePercentage)}%
-              </div>
-              <div style={{ fontSize: '12px', color: '#6c757d', textAlign: 'center', marginTop: '5px' }}>
-                Based on party position assumptions
-              </div>
-            </div>
-
-            {/* Accurate calculation */}
+            {/* Accurate party-line calculation */}
             {partyLineStats && (
               <div style={{ padding: '15px', backgroundColor: '#e8f5e8', borderRadius: '6px', border: '1px solid #28a745' }}>
                 <div style={{ fontSize: '14px', color: '#155724', marginBottom: '10px' }}>
-                  <strong>✓ Actual Party Majority Analysis:</strong>
+                  <strong>Party-Line Voting:</strong>
                 </div>
                 <div style={{ 
                   fontSize: '28px', 
@@ -573,21 +477,25 @@ function MPDetail() {
             )}
 
             {!partyLineStats && !calculatingPartyLine && votes.length > 0 && (
-              <div style={{ textAlign: 'center', marginTop: '15px' }}>
+              <div style={{ textAlign: 'center' }}>
                 <button 
                   onClick={calculateAccuratePartyLineStats}
                   style={{
-                    padding: '10px 20px',
+                    padding: '12px 24px',
                     backgroundColor: '#28a745',
                     color: 'white',
                     border: 'none',
-                    borderRadius: '4px',
+                    borderRadius: '6px',
                     cursor: 'pointer',
-                    fontSize: '14px'
+                    fontSize: '16px',
+                    fontWeight: '500'
                   }}
                 >
-                  Calculate Accurate Party-Line Stats
+                  Calculate Party-Line Stats
                 </button>
+                <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '10px' }}>
+                  Analyze actual party majority positions
+                </div>
               </div>
             )}
           </div>
