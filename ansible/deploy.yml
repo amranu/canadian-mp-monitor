@@ -223,10 +223,13 @@
       become_user: "{{ app_user }}"
 
     - name: Wait for backend to be ready
-      wait_for:
-        port: 5000
-        delay: 10
-        timeout: 60
+      shell: |
+        cd "{{ app_dir }}" && docker compose exec -T backend curl -f http://localhost:5000/ || exit 1
+      become_user: "{{ app_user }}"
+      register: backend_health
+      until: backend_health.rc == 0
+      retries: 12
+      delay: 5
 
     - name: Run initial cache setup - incremental update first
       shell: |
