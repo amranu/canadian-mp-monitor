@@ -120,17 +120,35 @@ export const calculatePartyLineStats = async (mpVotes, mpParty) => {
       // Skip if MP didn't cast yes/no vote
       if (vote.mp_ballot !== 'Yes' && vote.mp_ballot !== 'No') continue;
 
-      // Get detailed ballot information for this vote using the ballots endpoint
-      const ballotsData = await parliamentApi.getVoteBallots(vote.url);
-      if (!ballotsData || !ballotsData.objects || ballotsData.objects.length === 0) {
-        console.log('No ballot data for:', vote.url);
+      // Try to get ballot data from the vote details first
+      const voteDetails = await parliamentApi.getVoteDetails(vote.url);
+      let ballots = [];
+      
+      if (voteDetails && voteDetails.ballots) {
+        ballots = voteDetails.ballots;
+        console.log('Got ballots from vote details for:', vote.url, ballots.length, 'ballots');
+      } else {
+        // Fallback to ballots endpoint
+        try {
+          const ballotsData = await parliamentApi.getVoteBallots(vote.url);
+          if (ballotsData && ballotsData.objects) {
+            ballots = ballotsData.objects;
+            console.log('Got ballots from ballots endpoint for:', vote.url, ballots.length, 'ballots');
+          }
+        } catch (error) {
+          console.log('Ballots endpoint failed for:', vote.url, error.message);
+        }
+      }
+      
+      if (!ballots || ballots.length === 0) {
+        console.log('No ballot data available for:', vote.url);
         continue;
       }
       
-      console.log('Processing vote:', vote.url, 'with', ballotsData.objects.length, 'ballots');
+      console.log('Processing vote:', vote.url, 'with', ballots.length, 'ballots');
 
       // Calculate party position for this vote
-      const partyStats = calculatePartyPosition(ballotsData.objects, mpParty);
+      const partyStats = calculatePartyPosition(ballots, mpParty);
       
       // Skip if party didn't have a clear majority position
       if (!partyStats.majorityPosition) continue;

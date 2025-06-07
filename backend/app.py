@@ -116,12 +116,19 @@ def get_cached_vote_details_filename(vote_path):
 def load_cached_vote_details(vote_path):
     """Load vote details from cache file"""
     try:
+        # Handle both URL formats: 44-1/451 -> 44-1_451
+        if '/' in vote_path:
+            vote_path = vote_path.replace('/', '_')
+            
         filename = get_cached_vote_details_filename(vote_path)
+        print(f"[{datetime.now()}] Looking for vote cache file: {filename}")
         if os.path.exists(filename):
             with open(filename, 'r') as f:
                 data = json.load(f)
             print(f"[{datetime.now()}] Loaded cached vote details for {vote_path}")
             return data
+        else:
+            print(f"[{datetime.now()}] Vote cache file not found: {filename}")
     except Exception as e:
         print(f"[{datetime.now()}] Error loading cached vote details for {vote_path}: {e}")
     return None
@@ -431,7 +438,16 @@ def get_vote_ballots():
     try:
         # Only serve from cached vote details data
         # Convert vote URL to path for cache lookup
-        vote_path = vote_url.replace('/votes/', '').replace('/', '') if vote_url.startswith('/votes/') else vote_url
+        if vote_url.startswith('/votes/'):
+            # Extract session and number from /votes/44-1/451/ -> 44-1_451
+            parts = vote_url.replace('/votes/', '').strip('/').split('/')
+            if len(parts) >= 2:
+                vote_path = f"{parts[0]}_{parts[1]}"
+            else:
+                vote_path = vote_url.replace('/votes/', '').replace('/', '')
+        else:
+            vote_path = vote_url
+        print(f"[{datetime.now()}] Looking for vote ballots: {vote_url} -> {vote_path}")
         
         cached_data = load_cached_vote_details(vote_path)
         if cached_data and 'ballots' in cached_data:
