@@ -131,6 +131,12 @@ def enrich_cached_vote_details(cached_data):
     if not cached_data or 'ballots' not in cached_data:
         return cached_data
     
+    # For large historical votes, skip enrichment to avoid timeouts
+    ballot_count = len(cached_data['ballots'])
+    if ballot_count > 200:
+        print(f"[{datetime.now()}] Skipping enrichment for large vote with {ballot_count} ballots to avoid timeout")
+        return cached_data
+    
     # Get politician maps
     politicians = cache['politicians'].get('data', [])
     politician_map = {mp['url']: mp for mp in politicians} if politicians else {}
@@ -152,9 +158,8 @@ def enrich_cached_vote_details(cached_data):
         elif mp_data:
             current_mp_count += 1
         else:
-            # Fetch from API as last resort (cached)
-            mp_slug = ballot['politician_url'].replace('/politicians/', '').replace('/', '')
-            mp_data = fetch_mp_details_from_api(mp_slug)
+            # Skip API fetching for historical votes to avoid timeouts
+            print(f"[{datetime.now()}] Skipping API fetch for {ballot['politician_url']} to avoid timeout")
             api_fetched_count += 1
         
         # Extract party and riding info
