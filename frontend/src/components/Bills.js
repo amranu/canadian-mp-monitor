@@ -238,9 +238,10 @@ function Bills() {
                 }}
               >
                 <option value="">All Types</option>
-                <option value="C">Government Bills (C-)</option>
-                <option value="S">Senate Bills (S-)</option>
-                <option value="M">Private Member Motions (M-)</option>
+                <option value="government">Government Bills (C-1 to C-200, S-1 to S-200)</option>
+                <option value="private_member">Private Member Bills (C-201+, S-201+)</option>
+                <option value="house">All House Bills (C-)</option>
+                <option value="senate">All Senate Bills (S-)</option>
               </select>
             </div>
 
@@ -282,7 +283,12 @@ function Bills() {
             <>
               Showing {bills.length} of {totalCount} bills
               {sessionFilter && ` from session ${sessionFilter}`}
-              {typeFilter && ` (${typeFilter === 'C' ? 'Government' : typeFilter === 'S' ? 'Senate' : 'Private Member'} bills)`}
+              {typeFilter && ` (${
+                typeFilter === 'government' ? 'Government' : 
+                typeFilter === 'private_member' ? 'Private Member' : 
+                typeFilter === 'house' ? 'House' : 
+                typeFilter === 'senate' ? 'Senate' : typeFilter
+              } bills)`}
               {hasVotesFilter && ` with votes`}
             </>
           )}

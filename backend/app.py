@@ -1171,9 +1171,38 @@ def get_bills():
                             if bill.get('sponsor_politician_url') == sponsor_url]
         
         if bill_type:
-            # Filter by bill type (C, S, M)
-            filtered_bills = [bill for bill in filtered_bills 
-                            if bill.get('number', '').startswith(f'{bill_type}-')]
+            # Filter by bill type using Canadian Parliament numbering system
+            def get_bill_number(bill_number_str):
+                """Extract numeric part from bill number like 'C-123' -> 123"""
+                try:
+                    if '-' in bill_number_str:
+                        return int(bill_number_str.split('-')[1])
+                except (ValueError, IndexError):
+                    pass
+                return 0
+            
+            if bill_type == 'government':
+                # Government bills: C-1 to C-200, S-1 to S-200  
+                filtered_bills = [bill for bill in filtered_bills 
+                                if (bill.get('number', '').startswith('C-') and 
+                                    1 <= get_bill_number(bill.get('number', '')) <= 200) or
+                                   (bill.get('number', '').startswith('S-') and 
+                                    1 <= get_bill_number(bill.get('number', '')) <= 200)]
+            elif bill_type == 'private_member':
+                # Private member bills: C-201 to C-1000, S-201 to S-1000
+                filtered_bills = [bill for bill in filtered_bills 
+                                if (bill.get('number', '').startswith('C-') and 
+                                    201 <= get_bill_number(bill.get('number', '')) <= 1000) or
+                                   (bill.get('number', '').startswith('S-') and 
+                                    201 <= get_bill_number(bill.get('number', '')) <= 1000)]
+            elif bill_type == 'senate':
+                # All Senate bills: S-1+
+                filtered_bills = [bill for bill in filtered_bills 
+                                if bill.get('number', '').startswith('S-')]
+            elif bill_type == 'house':
+                # All House bills: C-1+
+                filtered_bills = [bill for bill in filtered_bills 
+                                if bill.get('number', '').startswith('C-')]
         
         if has_votes and has_votes.lower() == 'true':
             # Filter for bills that have votes - check if bill URL exists in vote cache
