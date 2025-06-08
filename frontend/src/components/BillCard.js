@@ -58,11 +58,14 @@ function BillCard({ bill, onClick }) {
         boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
         cursor: 'pointer',
         transition: 'box-shadow 0.2s, transform 0.1s',
-        minWidth: 0, // Allow shrinking below content size
         width: '100%',
-        maxWidth: '400px', // Reasonable max width
-        margin: '0 auto', // Center the card within its grid cell
-        boxSizing: 'border-box'
+        height: '240px', // Fixed height for all cards
+        maxWidth: '400px',
+        margin: '0 auto',
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between'
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
@@ -73,7 +76,8 @@ function BillCard({ bill, onClick }) {
         e.currentTarget.style.transform = 'translateY(0)';
       }}
     >
-      <div style={{ marginBottom: '15px' }}>
+      {/* Top section - header and title */}
+      <div style={{ flex: '1', display: 'flex', flexDirection: 'column' }}>
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
@@ -99,98 +103,109 @@ function BillCard({ bill, onClick }) {
             color: '#666',
             fontWeight: 'bold',
             textAlign: 'right',
-            minWidth: 0 // Allow text to wrap if needed
+            minWidth: 0
           }}>
             {formatBillNumber(bill)}
           </div>
         </div>
 
         <h3 style={{
-          margin: '0 0 10px 0',
-          fontSize: '18px',
-          lineHeight: '1.4',
+          margin: '0 0 8px 0',
+          fontSize: '16px',
+          lineHeight: '1.3',
           color: '#333',
           fontWeight: '600',
-          wordBreak: 'break-word' // Handle long titles
+          wordBreak: 'break-word',
+          overflow: 'hidden',
+          display: '-webkit-box',
+          WebkitLineClamp: 3,
+          WebkitBoxOrient: 'vertical'
         }}>
           {bill.name?.en || 'Bill name not available'}
         </h3>
 
         {bill.name?.fr && bill.name.fr !== bill.name?.en && (
           <p style={{
-            margin: '0 0 10px 0',
-            fontSize: '14px',
+            margin: '0',
+            fontSize: '13px',
             color: '#666',
             fontStyle: 'italic',
-            lineHeight: '1.3',
-            wordBreak: 'break-word'
+            lineHeight: '1.2',
+            wordBreak: 'break-word',
+            overflow: 'hidden',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical'
           }}>
             {bill.name.fr}
           </p>
         )}
       </div>
 
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        fontSize: '14px',
-        color: '#666',
-        gap: '10px',
-        flexWrap: 'wrap'
-      }}>
-        <span style={{ minWidth: 0 }}>
-          <strong>Introduced:</strong> {formatDate(bill.introduced)}
-        </span>
-        <span style={{ 
-          whiteSpace: 'nowrap',
-          flexShrink: 0
-        }}>
-          <strong>Session:</strong> {bill.session}
-        </span>
-      </div>
-
-      {/* LEGISinfo Link */}
-      {bill.legisinfo_id && (
+      {/* Bottom section - metadata and link */}
+      <div style={{ marginTop: 'auto' }}>
         <div style={{
-          marginTop: '12px',
-          paddingTop: '12px',
-          borderTop: '1px solid #e9ecef'
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontSize: '13px',
+          color: '#666',
+          gap: '8px',
+          flexWrap: 'wrap',
+          marginBottom: bill.legisinfo_id ? '10px' : '0'
         }}>
-          <a
-            href={`https://www.parl.ca/legisinfo/en/bill/${bill.session}/${bill.number.toLowerCase()}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              color: '#007bff',
-              textDecoration: 'none',
-              fontSize: '12px',
-              fontWeight: '500',
-              padding: '4px 8px',
-              backgroundColor: '#f8f9fa',
-              borderRadius: '4px',
-              border: '1px solid #dee2e6',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#e3f2fd';
-              e.currentTarget.style.borderColor = '#90caf9';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#f8f9fa';
-              e.currentTarget.style.borderColor = '#dee2e6';
-            }}
-          >
-            <span>🏛️</span>
-            Official Bill Details
-            <span style={{ fontSize: '10px' }}>↗</span>
-          </a>
+          <span style={{ minWidth: 0 }}>
+            <strong>Introduced:</strong> {formatDate(bill.introduced)}
+          </span>
+          <span style={{ 
+            whiteSpace: 'nowrap',
+            flexShrink: 0
+          }}>
+            <strong>Session:</strong> {bill.session}
+          </span>
         </div>
-      )}
+
+        {/* LEGISinfo Link */}
+        {bill.legisinfo_id && (
+          <div style={{
+            paddingTop: '10px',
+            borderTop: '1px solid #e9ecef'
+          }}>
+            <a
+              href={`https://www.parl.ca/legisinfo/en/bill/${bill.session}/${bill.number.toLowerCase()}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                color: '#007bff',
+                textDecoration: 'none',
+                fontSize: '11px',
+                fontWeight: '500',
+                padding: '3px 6px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '3px',
+                border: '1px solid #dee2e6',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#e3f2fd';
+                e.currentTarget.style.borderColor = '#90caf9';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#f8f9fa';
+                e.currentTarget.style.borderColor = '#dee2e6';
+              }}
+            >
+              <span>🏛️</span>
+              Official Details
+              <span style={{ fontSize: '9px' }}>↗</span>
+            </a>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
