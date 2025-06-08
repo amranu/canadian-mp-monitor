@@ -48,8 +48,10 @@ def get_memory_usage_mb():
     return 0
 
 
-def check_memory_and_cleanup(max_memory_mb=MAX_MEMORY_MB):
+def check_memory_and_cleanup(max_memory_mb=None):
     """Check memory usage and force cleanup if needed"""
+    if max_memory_mb is None:
+        max_memory_mb = MAX_MEMORY_MB
     current_memory = get_memory_usage_mb()
     if current_memory > max_memory_mb:
         print(f"Memory usage ({current_memory:.1f}MB) exceeds limit ({max_memory_mb}MB), forcing cleanup...")
@@ -428,7 +430,7 @@ def save_incremental_results(mp_slug, mp_stats, existing_data=None):
     save_party_line_cache(existing_data)
     return existing_data
 
-def calculate_all_party_line_stats():
+def calculate_all_party_line_stats(memory_limit_mb=MAX_MEMORY_MB, max_votes_per_mp=300):
     """Calculate party-line statistics for all MPs with memory-efficient processing"""
     print(f"[{datetime.now()}] Starting memory-efficient party-line statistics calculation...")
     
@@ -457,7 +459,7 @@ def calculate_all_party_line_stats():
             print(f"Processing MP {processed + 1}/{len(all_mps)}: {mp_slug}")
             
             # Get limited vote data for this MP only
-            mp_votes_data = get_votes_for_mp_analysis(mp_slug, max_votes=300)
+            mp_votes_data = get_votes_for_mp_analysis(mp_slug, max_votes=max_votes_per_mp)
             
             if not mp_votes_data:
                 print(f"No vote data found for {mp_slug}, skipping...")
@@ -481,7 +483,7 @@ def calculate_all_party_line_stats():
                 print(f"Processed {processed}/{len(all_mps)} MPs... Memory: {current_memory:.1f}MB")
             
             # Force cleanup if memory usage is too high
-            if check_memory_and_cleanup():
+            if check_memory_and_cleanup(memory_limit_mb):
                 print(f"Memory cleanup performed after processing {mp_slug}")
                 
         except Exception as e:
@@ -544,10 +546,6 @@ def main():
     print(f"[{datetime.now()}] Party-line statistics caching started")
     print(f"Memory limit: {args.memory_limit}MB, Max votes per MP: {args.max_votes}")
     
-    # Update global memory limit
-    global MAX_MEMORY_MB
-    MAX_MEMORY_MB = args.memory_limit
-    
     # Try to load existing cache first
     if not args.force:
         cached_data = load_party_line_cache()
@@ -556,7 +554,7 @@ def main():
             return
     
     # Calculate new statistics
-    stats_data = calculate_all_party_line_stats()
+    stats_data = calculate_all_party_line_stats(args.memory_limit, args.max_votes)
     if stats_data:
         if save_party_line_cache(stats_data):
             print(f"[{datetime.now()}] Party-line statistics cache updated successfully")
