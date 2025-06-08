@@ -1119,8 +1119,6 @@ function MPDetail() {
                       display: grid !important;
                       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
                       justify-content: center !important;
-                      max-width: 1200px !important;
-                      margin: 0 auto !important;
                     }
                   }
                 `}</style>
