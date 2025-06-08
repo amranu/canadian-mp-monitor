@@ -73,7 +73,7 @@ def get_party_variations(party):
     return variations.get(party, [party])
 
 
-def extract_party_from_ballot(ballot):
+def extract_party_from_ballot(ballot, politicians_lookup=None):
     """Extract party name from ballot object with multiple fallbacks"""
     party_name = ''
     
@@ -88,6 +88,13 @@ def extract_party_from_ballot(ballot):
         party_name = ballot['politician']['current_party']['short_name']['en']
     elif ballot.get('politician', {}).get('party'):
         party_name = ballot['politician']['party']
+    else:
+        # If no party info in ballot, try to look up from politician_url
+        politician_url = ballot.get('politician_url', '')
+        if politician_url and politicians_lookup:
+            # Extract slug from URL like '/politicians/ziad-aboultaif/'
+            slug = politician_url.replace('/politicians/', '').replace('/', '')
+            party_name = politicians_lookup.get(slug, '')
     
     return party_name.strip()
 
@@ -112,7 +119,7 @@ def normalize_party_name(party):
         return party  # Keep original if no match
 
 
-def calculate_party_position(ballots, party):
+def calculate_party_position(ballots, party, politicians_lookup=None):
     """
     Calculate party majority position for a specific vote
     Returns party voting statistics and majority position
@@ -121,7 +128,7 @@ def calculate_party_position(ballots, party):
     
     party_ballots = []
     for ballot in ballots:
-        ballot_party = extract_party_from_ballot(ballot)
+        ballot_party = extract_party_from_ballot(ballot, politicians_lookup)
         if ballot_party:
             normalized_ballot_party = normalize_party_name(ballot_party)
             if normalized_ballot_party == normalized_party:
@@ -200,7 +207,7 @@ def get_all_cached_votes():
     return votes_data
 
 
-def calculate_mp_party_line_stats(mp_slug, mp_party, votes_data):
+def calculate_mp_party_line_stats(mp_slug, mp_party, votes_data, politicians_lookup=None):
     """Calculate comprehensive party-line statistics for an MP"""
     party_line_votes = 0
     total_eligible_votes = 0
@@ -220,7 +227,13 @@ def calculate_mp_party_line_stats(mp_slug, mp_party, votes_data):
             # Find this MP's ballot in the vote
             mp_ballot = None
             for ballot in ballots:
-                # Check various name fields to match the MP
+                # Check politician_url field (main field in vote data)
+                politician_url = ballot.get('politician_url', '')
+                if f'/politicians/{mp_slug}/' in politician_url:
+                    mp_ballot = ballot.get('ballot')
+                    break
+                
+                # Fallback: check other possible name fields
                 mp_name_fields = [
                     ballot.get('mp_name', ''),
                     ballot.get('politician_name', ''),
@@ -228,7 +241,6 @@ def calculate_mp_party_line_stats(mp_slug, mp_party, votes_data):
                     ballot.get('name', '')
                 ]
                 
-                # Also check slug matching
                 mp_slug_fields = [
                     ballot.get('mp_slug', ''),
                     ballot.get('politician_slug', ''),
@@ -236,7 +248,7 @@ def calculate_mp_party_line_stats(mp_slug, mp_party, votes_data):
                     ballot.get('slug', '')
                 ]
                 
-                # Match by slug (most reliable) or name
+                # Match by slug or name (fallback)
                 if (mp_slug in mp_slug_fields or 
                     any(mp_slug.replace('-', ' ').lower() in name.lower() for name in mp_name_fields if name)):
                     mp_ballot = ballot.get('ballot')
@@ -246,7 +258,7 @@ def calculate_mp_party_line_stats(mp_slug, mp_party, votes_data):
                 continue  # Skip if MP didn't vote or vote wasn't Yes/No
             
             # Calculate party position for this vote
-            party_stats = calculate_party_position(ballots, mp_party)
+            party_stats = calculate_party_position(ballots, mp_party, politicians_lookup)
             
             if not party_stats['majority_position']:
                 continue  # Skip if party didn't have clear majority position
@@ -382,6 +394,13 @@ def get_votes_for_mp_analysis(mp_slug, max_votes=500):
             # Check if this MP is in this vote before including it
             mp_found = False
             for ballot in vote_data['ballots']:
+                # Check politician_url field (main field in vote data)
+                politician_url = ballot.get('politician_url', '')
+                if f'/politicians/{mp_slug}/' in politician_url:
+                    mp_found = True
+                    break
+                
+                # Fallback: check other possible fields
                 if (mp_slug in str(ballot.get('mp_slug', '')) or 
                     mp_slug.replace('-', ' ').lower() in str(ballot.get('mp_name', '')).lower()):
                     mp_found = True
@@ -466,9 +485,11 @@ def calculate_all_party_line_stats(memory_limit_mb=MAX_MEMORY_MB, max_votes_per_
             if not mp_votes_data:
                 print(f"No vote data found for {mp_slug}, skipping...")
                 continue
+            else:
+                print(f"Found {len(mp_votes_data)} votes for {mp_slug}")
             
             # Calculate stats for this MP
-            stats = calculate_mp_party_line_stats(mp_slug, mp_party, mp_votes_data)
+            stats = calculate_mp_party_line_stats(mp_slug, mp_party, mp_votes_data, all_mps)
             
             # Save results incrementally
             existing_data = save_incremental_results(mp_slug, stats, existing_data)
