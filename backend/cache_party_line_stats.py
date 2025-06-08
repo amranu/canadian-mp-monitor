@@ -16,9 +16,12 @@ Features:
 import json
 import os
 import time
+import gc
+import sys
 from datetime import datetime, timedelta
 from collections import defaultdict
 import glob
+import argparse
 
 # Cache configuration
 CACHE_DIR = 'cache'
@@ -26,6 +29,33 @@ VOTE_DETAILS_CACHE_DIR = os.path.join(CACHE_DIR, 'vote_details')
 MP_VOTES_CACHE_DIR = os.path.join(CACHE_DIR, 'mp_votes')
 PARTY_LINE_CACHE_FILE = os.path.join(CACHE_DIR, 'party_line_stats.json')
 PARTY_LINE_CACHE_DURATION = 7200  # 2 hours in seconds
+MAX_MEMORY_MB = 1000  # Maximum memory usage in MB before forcing cleanup
+
+
+def get_memory_usage_mb():
+    """Get current memory usage in MB (basic version without psutil)"""
+    try:
+        # Read from /proc/self/status on Linux
+        with open('/proc/self/status', 'r') as f:
+            for line in f:
+                if line.startswith('VmRSS:'):
+                    # Extract memory in kB and convert to MB
+                    return int(line.split()[1]) / 1024
+    except:
+        pass
+    
+    # Fallback: return 0 if we can't determine memory usage
+    return 0
+
+
+def check_memory_and_cleanup(max_memory_mb=MAX_MEMORY_MB):
+    """Check memory usage and force cleanup if needed"""
+    current_memory = get_memory_usage_mb()
+    if current_memory > max_memory_mb:
+        print(f"Memory usage ({current_memory:.1f}MB) exceeds limit ({max_memory_mb}MB), forcing cleanup...")
+        gc.collect()
+        return True
+    return False
 
 
 def get_party_variations(party):
@@ -305,54 +335,166 @@ def get_all_mps_from_votes(votes_data):
     return mps
 
 
-def calculate_all_party_line_stats():
-    """Calculate party-line statistics for all MPs"""
-    print(f"[{datetime.now()}] Starting party-line statistics calculation...")
+def get_mp_list_from_cache():
+    """Get list of MPs from politicians cache instead of loading all vote data"""
+    try:
+        politicians_file = os.path.join(CACHE_DIR, 'politicians.json')
+        if os.path.exists(politicians_file):
+            with open(politicians_file, 'r') as f:
+                data = json.load(f)
+            
+            mps = {}
+            for mp in data.get('objects', []):
+                if mp.get('url'):
+                    slug = mp['url'].replace('/politicians/', '').replace('/', '')
+                    party = mp.get('current_party', {}).get('short_name', {}).get('en', 'Unknown')
+                    if party:
+                        mps[slug] = party
+            
+            print(f"Found {len(mps)} MPs from politicians cache")
+            return mps
+    except Exception as e:
+        print(f"Error loading MPs from politicians cache: {e}")
     
-    # Load all cached vote data
-    votes_data = get_all_cached_votes()
-    if not votes_data:
-        print("No cached vote data available")
+    return {}
+
+def get_votes_for_mp_analysis(mp_slug, max_votes=500):
+    """Get a limited set of votes for MP analysis to reduce memory usage"""
+    vote_files = glob.glob(os.path.join(VOTE_DETAILS_CACHE_DIR, '*.json'))
+    votes_data = {}
+    
+    # Limit to recent votes to reduce memory usage
+    vote_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+    
+    processed_votes = 0
+    for vote_file in vote_files[:max_votes]:  # Limit number of votes processed
+        if processed_votes >= max_votes:
+            break
+            
+        vote_id = os.path.basename(vote_file).replace('.json', '')
+        vote_data = load_vote_details(vote_id)
+        
+        if vote_data and 'ballots' in vote_data:
+            # Check if this MP is in this vote before including it
+            mp_found = False
+            for ballot in vote_data['ballots']:
+                if (mp_slug in str(ballot.get('mp_slug', '')) or 
+                    mp_slug.replace('-', ' ').lower() in str(ballot.get('mp_name', '')).lower()):
+                    mp_found = True
+                    break
+            
+            if mp_found:
+                votes_data[vote_id] = vote_data
+                processed_votes += 1
+    
+    return votes_data
+
+def load_existing_party_line_cache():
+    """Load existing party-line cache to resume processing"""
+    try:
+        if os.path.exists(PARTY_LINE_CACHE_FILE):
+            with open(PARTY_LINE_CACHE_FILE, 'r') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"Error loading existing cache: {e}")
+    return None
+
+def save_incremental_results(mp_slug, mp_stats, existing_data=None):
+    """Save results incrementally for one MP"""
+    if existing_data is None:
+        existing_data = {
+            'summary': {
+                'total_mps_analyzed': 0,
+                'total_votes_analyzed': 0,
+                'avg_party_line_percentage': 0,
+                'calculation_date': datetime.now().isoformat(),
+                'cache_expires': (datetime.now() + timedelta(seconds=PARTY_LINE_CACHE_DURATION)).isoformat()
+            },
+            'mp_stats': {}
+        }
+    
+    # Add/update MP stats
+    existing_data['mp_stats'][mp_slug] = mp_stats
+    
+    # Update summary
+    all_stats = existing_data['mp_stats']
+    existing_data['summary']['total_mps_analyzed'] = len(all_stats)
+    existing_data['summary']['avg_party_line_percentage'] = round(
+        sum(stats['party_line_percentage'] for stats in all_stats.values()) / len(all_stats), 1
+    ) if all_stats else 0
+    existing_data['summary']['calculation_date'] = datetime.now().isoformat()
+    
+    # Save to file
+    save_party_line_cache(existing_data)
+    return existing_data
+
+def calculate_all_party_line_stats():
+    """Calculate party-line statistics for all MPs with memory-efficient processing"""
+    print(f"[{datetime.now()}] Starting memory-efficient party-line statistics calculation...")
+    
+    # Get MPs from politicians cache (much more memory efficient)
+    all_mps = get_mp_list_from_cache()
+    if not all_mps:
+        print("No MP data available")
         return None
     
-    # Get all MPs from vote data
-    all_mps = get_all_mps_from_votes(votes_data)
+    # Load existing cache to resume if needed
+    existing_data = load_existing_party_line_cache()
+    already_processed = set()
     
-    # Calculate stats for each MP
-    all_stats = {}
-    processed = 0
+    if existing_data and 'mp_stats' in existing_data:
+        already_processed = set(existing_data['mp_stats'].keys())
+        print(f"Found existing cache with {len(already_processed)} MPs already processed")
+    
+    # Process MPs one at a time to minimize memory usage
+    processed = len(already_processed)
     
     for mp_slug, mp_party in all_mps.items():
+        if mp_slug in already_processed:
+            continue  # Skip already processed MPs
+            
         try:
-            stats = calculate_mp_party_line_stats(mp_slug, mp_party, votes_data)
-            all_stats[mp_slug] = stats
+            print(f"Processing MP {processed + 1}/{len(all_mps)}: {mp_slug}")
+            
+            # Get limited vote data for this MP only
+            mp_votes_data = get_votes_for_mp_analysis(mp_slug, max_votes=300)
+            
+            if not mp_votes_data:
+                print(f"No vote data found for {mp_slug}, skipping...")
+                continue
+            
+            # Calculate stats for this MP
+            stats = calculate_mp_party_line_stats(mp_slug, mp_party, mp_votes_data)
+            
+            # Save results incrementally
+            existing_data = save_incremental_results(mp_slug, stats, existing_data)
+            
+            # Clear memory and check usage
+            del mp_votes_data
+            gc.collect()
+            
             processed += 1
             
-            if processed % 50 == 0:
-                print(f"Processed {processed}/{len(all_mps)} MPs...")
+            # Check memory usage and log progress
+            current_memory = get_memory_usage_mb()
+            if processed % 10 == 0:
+                print(f"Processed {processed}/{len(all_mps)} MPs... Memory: {current_memory:.1f}MB")
+            
+            # Force cleanup if memory usage is too high
+            if check_memory_and_cleanup():
+                print(f"Memory cleanup performed after processing {mp_slug}")
                 
         except Exception as e:
             print(f"Error calculating stats for {mp_slug}: {e}")
             continue
     
-    # Add summary statistics
-    summary = {
-        'total_mps_analyzed': len(all_stats),
-        'total_votes_analyzed': len(votes_data),
-        'avg_party_line_percentage': round(
-            sum(stats['party_line_percentage'] for stats in all_stats.values()) / len(all_stats), 1
-        ) if all_stats else 0,
-        'calculation_date': datetime.now().isoformat(),
-        'cache_expires': (datetime.now() + timedelta(seconds=PARTY_LINE_CACHE_DURATION)).isoformat()
-    }
+    # Final summary update
+    if existing_data:
+        existing_data['summary']['cache_expires'] = (datetime.now() + timedelta(seconds=PARTY_LINE_CACHE_DURATION)).isoformat()
+        save_party_line_cache(existing_data)
     
-    result = {
-        'summary': summary,
-        'mp_stats': all_stats
-    }
-    
-    print(f"[{datetime.now()}] Completed party-line calculation for {len(all_stats)} MPs")
-    return result
+    print(f"[{datetime.now()}] Completed party-line calculation for {processed} MPs")
+    return existing_data
 
 
 def save_party_line_cache(data):
@@ -391,23 +533,61 @@ def load_party_line_cache():
 
 def main():
     """Main function to calculate and cache party-line statistics"""
+    parser = argparse.ArgumentParser(description='Calculate party-line voting statistics')
+    parser.add_argument('--force', action='store_true', help='Force recalculation even if cache exists')
+    parser.add_argument('--memory-limit', type=int, default=MAX_MEMORY_MB, help='Memory limit in MB')
+    parser.add_argument('--max-votes', type=int, default=300, help='Maximum votes to analyze per MP')
+    parser.add_argument('--batch-size', type=int, default=10, help='Number of MPs to process before reporting')
+    
+    args = parser.parse_args()
+    
     print(f"[{datetime.now()}] Party-line statistics caching started")
+    print(f"Memory limit: {args.memory_limit}MB, Max votes per MP: {args.max_votes}")
+    
+    # Update global memory limit
+    global MAX_MEMORY_MB
+    MAX_MEMORY_MB = args.memory_limit
     
     # Try to load existing cache first
-    cached_data = load_party_line_cache()
-    if cached_data:
-        print("Valid cache found, skipping recalculation")
-        return
+    if not args.force:
+        cached_data = load_party_line_cache()
+        if cached_data:
+            print("Valid cache found, skipping recalculation (use --force to override)")
+            return
     
     # Calculate new statistics
     stats_data = calculate_all_party_line_stats()
     if stats_data:
         if save_party_line_cache(stats_data):
             print(f"[{datetime.now()}] Party-line statistics cache updated successfully")
+            print(f"Processed {stats_data['summary']['total_mps_analyzed']} MPs")
         else:
             print(f"[{datetime.now()}] Failed to save party-line statistics cache")
     else:
         print(f"[{datetime.now()}] Failed to calculate party-line statistics")
+
+
+def update_party_line_after_vote_cache():
+    """Function to be called after vote cache updates to refresh party-line stats"""
+    print(f"[{datetime.now()}] Checking if party-line cache needs update after vote cache refresh...")
+    
+    # Check if party-line cache is expired
+    cached_data = load_party_line_cache()
+    if not cached_data:
+        print("Party-line cache not found, triggering calculation...")
+        calculate_all_party_line_stats()
+    else:
+        # Check age of cache
+        try:
+            cache_expires = datetime.fromisoformat(cached_data['summary']['cache_expires'])
+            if datetime.now() >= cache_expires:
+                print("Party-line cache expired, triggering recalculation...")
+                calculate_all_party_line_stats()
+            else:
+                print("Party-line cache is still valid")
+        except:
+            print("Error checking cache expiration, triggering recalculation...")
+            calculate_all_party_line_stats()
 
 
 if __name__ == '__main__':

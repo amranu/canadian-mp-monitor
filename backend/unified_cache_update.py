@@ -714,6 +714,48 @@ class UnifiedCacheUpdater:
         """Fetch details for a single historical MP"""
         return self.api_request(f"{PARLIAMENT_API_BASE}{mp_url}")
     
+    def update_party_line_stats(self) -> bool:
+        """Update party-line voting statistics after vote cache updates"""
+        self.log_operation("Party-Line Stats", "STARTED")
+        
+        try:
+            # Import and call the party-line update function
+            import cache_party_line_stats
+            
+            # Check if party-line cache needs update
+            cached_data = cache_party_line_stats.load_party_line_cache()
+            if not self.force_full and cached_data:
+                # Check if cache is still valid
+                try:
+                    cache_expires = datetime.fromisoformat(cached_data['summary']['cache_expires'])
+                    if datetime.now() < cache_expires:
+                        self.log_operation("Party-Line Stats", "SKIPPED", "Cache still fresh")
+                        return True
+                except:
+                    pass  # If we can't parse expiration, proceed with update
+            
+            # Run party-line calculation with memory limits
+            self.logger.info("Calculating party-line statistics with memory optimization...")
+            stats_data = cache_party_line_stats.calculate_all_party_line_stats()
+            
+            if stats_data:
+                success = cache_party_line_stats.save_party_line_cache(stats_data)
+                if success:
+                    mp_count = stats_data['summary']['total_mps_analyzed']
+                    self.log_operation("Party-Line Stats", "COMPLETED", f"{mp_count} MPs analyzed")
+                    return True
+                else:
+                    self.log_operation("Party-Line Stats", "FAILED", "Could not save cache")
+                    return False
+            else:
+                self.log_operation("Party-Line Stats", "FAILED", "No data calculated")
+                return False
+                
+        except Exception as e:
+            self.log_operation("Party-Line Stats", "FAILED", f"Error: {e}")
+            self.logger.error(f"Party-line stats update error: {e}")
+            return False
+    
     def save_statistics(self):
         """Save comprehensive cache statistics"""
         self.stats['end_time'] = datetime.now()
@@ -758,6 +800,7 @@ class UnifiedCacheUpdater:
         self.update_bills_cache()
         self.update_mp_voting_records(max_mps=max_mps)
         self.update_historical_mps()
+        self.update_party_line_stats()
         
         self.save_statistics()
     
@@ -769,6 +812,7 @@ class UnifiedCacheUpdater:
         # In incremental mode, only update fresh MP records if cache is expired
         # This will still process all MPs, but only those with expired cache
         self.update_mp_voting_records(max_mps=max_mps)
+        self.update_party_line_stats()
         
         self.save_statistics()
     
