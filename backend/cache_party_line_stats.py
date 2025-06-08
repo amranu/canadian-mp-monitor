@@ -346,7 +346,9 @@ def get_mp_list_from_cache():
                 data = json.load(f)
             
             mps = {}
-            for mp in data.get('objects', []):
+            # Try both 'objects' and 'data' fields (different cache formats)
+            mp_list = data.get('objects', []) or data.get('data', [])
+            for mp in mp_list:
                 if mp.get('url'):
                     slug = mp['url'].replace('/politicians/', '').replace('/', '')
                     party = mp.get('current_party', {}).get('short_name', {}).get('en', 'Unknown')
