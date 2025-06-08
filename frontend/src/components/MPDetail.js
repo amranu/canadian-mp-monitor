@@ -25,12 +25,12 @@ function MPDetail() {
     loadMP();
   }, [mpSlug]);
 
-  // Load sponsored bills when bills tab is selected
+  // Load sponsored bills when component loads to determine if tab should be shown
   useEffect(() => {
-    if (activeTab === 'bills' && mp && sponsoredBills.length === 0 && !billsLoading) {
+    if (mp && sponsoredBills.length === 0 && !billsLoading) {
       loadSponsoredBills();
     }
-  }, [activeTab, mp]);
+  }, [mp]);
 
   // Extract available sessions from votes and set current session as default
   useEffect(() => {
@@ -332,9 +332,18 @@ function MPDetail() {
       const data = await parliamentApi.getMPSponsoredBills(mp.url);
       setSponsoredBills(data.objects || []);
       console.log(`Loaded ${data.objects?.length || 0} sponsored bills for ${mp.name}`);
+      
+      // If currently on bills tab but no bills found, switch to votes tab
+      if (activeTab === 'bills' && (!data.objects || data.objects.length === 0)) {
+        setActiveTab('votes');
+      }
     } catch (error) {
       console.error('Error loading sponsored bills:', error);
       setSponsoredBills([]);
+      // If currently on bills tab but error occurred, switch to votes tab
+      if (activeTab === 'bills') {
+        setActiveTab('votes');
+      }
     } finally {
       setBillsLoading(false);
     }
@@ -688,33 +697,36 @@ function MPDetail() {
           >
             📈 Statistics
           </button>
-          <button
-            onClick={() => setActiveTab('bills')}
-            style={{
-              padding: '12px 24px',
-              border: 'none',
-              backgroundColor: 'transparent',
-              color: activeTab === 'bills' ? '#333' : '#666',
-              cursor: 'pointer',
-              fontSize: '16px',
-              fontWeight: activeTab === 'bills' ? '600' : 'normal',
-              borderBottom: activeTab === 'bills' ? '2px solid #333' : '2px solid transparent',
-              marginBottom: '-2px',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseEnter={(e) => {
-              if (activeTab !== 'bills') {
-                e.target.style.color = '#333';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (activeTab !== 'bills') {
-                e.target.style.color = '#666';
-              }
-            }}
-          >
-            📋 Sponsored Bills
-          </button>
+          {/* Only show Bills tab if MP has sponsored bills */}
+          {!billsLoading && sponsoredBills.length > 0 && (
+            <button
+              onClick={() => setActiveTab('bills')}
+              style={{
+                padding: '12px 24px',
+                border: 'none',
+                backgroundColor: 'transparent',
+                color: activeTab === 'bills' ? '#333' : '#666',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: activeTab === 'bills' ? '600' : 'normal',
+                borderBottom: activeTab === 'bills' ? '2px solid #333' : '2px solid transparent',
+                marginBottom: '-2px',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'bills') {
+                  e.target.style.color = '#333';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'bills') {
+                  e.target.style.color = '#666';
+                }
+              }}
+            >
+              📋 Sponsored Bills ({sponsoredBills.length})
+            </button>
+          )}
         </div>
       </div>
 
