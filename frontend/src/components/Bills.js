@@ -113,7 +113,7 @@ function Bills() {
 
 
   return (
-    <div style={{ padding: '12px' }}>
+    <div style={{ padding: '20px' }}>
       <div style={{ marginBottom: '30px' }}>
         <h1 style={{ margin: '0 0 10px 0' }}>Parliamentary Bills</h1>
         <p style={{ color: '#666', marginBottom: '20px' }}>
@@ -319,7 +319,7 @@ function Bills() {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: '12px',
+          gap: '20px',
           marginBottom: '30px',
           width: '100%'
         }}
@@ -329,7 +329,7 @@ function Bills() {
           @media (min-width: 769px) {
             .bills-grid {
               display: grid !important;
-              grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+              grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)) !important;
               justify-content: center !important;
             }
           }

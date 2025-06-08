@@ -582,7 +582,7 @@ function MPDetail() {
   }
 
   return (
-    <div style={{ padding: '12px' }}>
+    <div style={{ padding: '20px' }}>
       <button 
         onClick={() => navigate('/')}
         style={{ 
@@ -1108,7 +1108,7 @@ function MPDetail() {
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: '12px',
+                  gap: '20px',
                   width: '100%'
                 }}
                 className="sponsored-bills-grid"
@@ -1117,7 +1117,7 @@ function MPDetail() {
                   @media (min-width: 769px) {
                     .sponsored-bills-grid {
                       display: grid !important;
-                      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+                      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)) !important;
                       justify-content: center !important;
                     }
                   }

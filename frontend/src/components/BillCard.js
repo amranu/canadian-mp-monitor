@@ -53,14 +53,14 @@ function BillCard({ bill, onClick }) {
       style={{
         border: '1px solid #ddd',
         borderRadius: '8px',
-        padding: '12px',
+        padding: '20px',
         backgroundColor: 'white',
         boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
         cursor: 'pointer',
         transition: 'box-shadow 0.2s, transform 0.1s',
         minWidth: 0, // Allow shrinking below content size
         width: '100%',
-        maxWidth: '350px', // Reasonable max width
+        maxWidth: '400px', // Reasonable max width
         margin: '0 auto', // Center the card within its grid cell
         boxSizing: 'border-box'
       }}
@@ -73,13 +73,13 @@ function BillCard({ bill, onClick }) {
         e.currentTarget.style.transform = 'translateY(0)';
       }}
     >
-      <div style={{ marginBottom: '12px' }}>
+      <div style={{ marginBottom: '15px' }}>
         <div style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
           alignItems: 'flex-start', 
-          marginBottom: '8px',
-          gap: '8px',
+          marginBottom: '10px',
+          gap: '10px',
           flexWrap: 'wrap'
         }}>
           <div style={{
@@ -87,7 +87,7 @@ function BillCard({ bill, onClick }) {
             backgroundColor: getBillTypeColor(bill.number),
             color: 'white',
             borderRadius: '4px',
-            fontSize: '11px',
+            fontSize: '12px',
             fontWeight: 'bold',
             whiteSpace: 'nowrap',
             flexShrink: 0
@@ -95,7 +95,7 @@ function BillCard({ bill, onClick }) {
             {getBillTypeLabel(bill.number)}
           </div>
           <div style={{
-            fontSize: '13px',
+            fontSize: '14px',
             color: '#666',
             fontWeight: 'bold',
             textAlign: 'right',
@@ -106,9 +106,9 @@ function BillCard({ bill, onClick }) {
         </div>
 
         <h3 style={{
-          margin: '0 0 8px 0',
-          fontSize: '16px',
-          lineHeight: '1.3',
+          margin: '0 0 10px 0',
+          fontSize: '18px',
+          lineHeight: '1.4',
           color: '#333',
           fontWeight: '600',
           wordBreak: 'break-word' // Handle long titles
@@ -118,11 +118,11 @@ function BillCard({ bill, onClick }) {
 
         {bill.name?.fr && bill.name.fr !== bill.name?.en && (
           <p style={{
-            margin: '0 0 8px 0',
-            fontSize: '13px',
+            margin: '0 0 10px 0',
+            fontSize: '14px',
             color: '#666',
             fontStyle: 'italic',
-            lineHeight: '1.2',
+            lineHeight: '1.3',
             wordBreak: 'break-word'
           }}>
             {bill.name.fr}
@@ -134,9 +134,9 @@ function BillCard({ bill, onClick }) {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        fontSize: '12px',
+        fontSize: '14px',
         color: '#666',
-        gap: '8px',
+        gap: '10px',
         flexWrap: 'wrap'
       }}>
         <span style={{ minWidth: 0 }}>
@@ -153,8 +153,8 @@ function BillCard({ bill, onClick }) {
       {/* LEGISinfo Link */}
       {bill.legisinfo_id && (
         <div style={{
-          marginTop: '10px',
-          paddingTop: '10px',
+          marginTop: '12px',
+          paddingTop: '12px',
           borderTop: '1px solid #e9ecef'
         }}>
           <a
@@ -165,14 +165,14 @@ function BillCard({ bill, onClick }) {
             style={{
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '4px',
+              gap: '6px',
               color: '#007bff',
               textDecoration: 'none',
-              fontSize: '11px',
+              fontSize: '12px',
               fontWeight: '500',
-              padding: '3px 6px',
+              padding: '4px 8px',
               backgroundColor: '#f8f9fa',
-              borderRadius: '3px',
+              borderRadius: '4px',
               border: '1px solid #dee2e6',
               transition: 'all 0.2s'
             }}
@@ -187,7 +187,7 @@ function BillCard({ bill, onClick }) {
           >
             <span>🏛️</span>
             Official Bill Details
-            <span style={{ fontSize: '9px' }}>↗</span>
+            <span style={{ fontSize: '10px' }}>↗</span>
           </a>
         </div>
       )}
