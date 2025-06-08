@@ -666,8 +666,8 @@ def update_bills_cache():
         
         all_bills = load_all_bills()
         
-        # Enrich bills with sponsor information (recent sessions only to avoid timeout)
-        recent_sessions = ['45-1', '44-1', '43-2', '43-1', '42-1']
+        # Enrich bills with sponsor information (more sessions to get more sponsored bills)
+        recent_sessions = ['45-1', '44-1', '43-2', '43-1', '42-1', '41-2', '41-1']
         print(f"[{datetime.now()}] Enriching bills with sponsor information for sessions: {recent_sessions}...")
         enriched_bills = enrich_bills_with_sponsor_info(all_bills, target_sessions=recent_sessions)
         
