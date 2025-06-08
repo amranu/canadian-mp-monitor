@@ -459,5 +459,59 @@ export const parliamentApi = {
     }
     
     return response.json();
+  },
+
+  async getPartyLineSessions() {
+    const cacheKey = 'party-line-sessions';
+    
+    // Check cache first
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+    
+    const url = `${API_BASE}/party-line/sessions`;
+    console.log('Fetching party-line sessions from:', url);
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Party-line sessions loaded:', data);
+    
+    // Cache the response
+    cache.set(cacheKey, data);
+    
+    return data;
+  },
+
+  async getPartyLineSessionDetails(session) {
+    const cacheKey = `party-line-session-${session}`;
+    
+    // Check cache first
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+    
+    const url = `${API_BASE}/party-line/session/${session}`;
+    console.log('Fetching party-line session details from:', url);
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Party-line session details loaded:', data);
+    
+    // Cache the response
+    cache.set(cacheKey, data);
+    
+    return data;
   }
 };

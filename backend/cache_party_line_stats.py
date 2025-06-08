@@ -455,6 +455,9 @@ def calculate_all_party_line_stats(memory_limit_mb=MAX_MEMORY_MB, max_votes_per_
     """Calculate party-line statistics for all MPs with memory-efficient processing"""
     print(f"[{datetime.now()}] Starting memory-efficient party-line statistics calculation...")
     
+    # Track sessions found across all MPs
+    all_sessions = set()
+    
     # Get MPs from politicians cache (much more memory efficient)
     all_mps = get_mp_list_from_cache()
     if not all_mps:
@@ -491,6 +494,10 @@ def calculate_all_party_line_stats(memory_limit_mb=MAX_MEMORY_MB, max_votes_per_
             # Calculate stats for this MP
             stats = calculate_mp_party_line_stats(mp_slug, mp_party, mp_votes_data, all_mps)
             
+            # Collect sessions from this MP
+            for session in stats.get('party_loyalty_by_session', {}).keys():
+                all_sessions.add(session)
+            
             # Save results incrementally
             existing_data = save_incremental_results(mp_slug, stats, existing_data)
             
@@ -513,13 +520,80 @@ def calculate_all_party_line_stats(memory_limit_mb=MAX_MEMORY_MB, max_votes_per_
             print(f"Error calculating stats for {mp_slug}: {e}")
             continue
     
-    # Final summary update
+    # Final summary update with session statistics
     if existing_data:
         existing_data['summary']['cache_expires'] = (datetime.now() + timedelta(seconds=PARTY_LINE_CACHE_DURATION)).isoformat()
+        existing_data['summary']['sessions_analyzed'] = sorted(list(all_sessions), reverse=True)
+        
+        # Calculate session-based summary statistics
+        session_summary = calculate_session_summary_stats(existing_data['mp_stats'])
+        existing_data['session_summary'] = session_summary
+        
         save_party_line_cache(existing_data)
     
-    print(f"[{datetime.now()}] Completed party-line calculation for {processed} MPs")
+    print(f"[{datetime.now()}] Completed party-line calculation for {processed} MPs across {len(all_sessions)} sessions")
     return existing_data
+
+
+def calculate_session_summary_stats(mp_stats):
+    """Calculate summary statistics by parliamentary session"""
+    session_stats = {}
+    
+    # Collect all sessions and their data
+    for mp_slug, stats in mp_stats.items():
+        mp_party = stats.get('mp_party', 'Unknown')
+        
+        for session, session_data in stats.get('party_loyalty_by_session', {}).items():
+            if session not in session_stats:
+                session_stats[session] = {
+                    'total_mps': 0,
+                    'total_votes_analyzed': 0,
+                    'avg_party_line_percentage': 0,
+                    'party_breakdown': {},
+                    'mp_count_by_party': {}
+                }
+            
+            session_stats[session]['total_mps'] += 1
+            session_stats[session]['total_votes_analyzed'] += session_data.get('total', 0)
+            
+            # Track by party
+            if mp_party not in session_stats[session]['party_breakdown']:
+                session_stats[session]['party_breakdown'][mp_party] = {
+                    'mp_count': 0,
+                    'avg_party_line_percentage': 0,
+                    'total_party_line_votes': 0,
+                    'total_eligible_votes': 0
+                }
+            
+            party_stats = session_stats[session]['party_breakdown'][mp_party]
+            party_stats['mp_count'] += 1
+            party_stats['total_party_line_votes'] += session_data.get('party_line', 0)
+            party_stats['total_eligible_votes'] += session_data.get('total', 0)
+            
+            # Count MPs by party for session
+            session_stats[session]['mp_count_by_party'][mp_party] = party_stats['mp_count']
+    
+    # Calculate averages and percentages
+    for session, stats in session_stats.items():
+        total_party_line_votes = 0
+        total_eligible_votes = 0
+        
+        for party, party_data in stats['party_breakdown'].items():
+            if party_data['total_eligible_votes'] > 0:
+                party_data['avg_party_line_percentage'] = round(
+                    (party_data['total_party_line_votes'] / party_data['total_eligible_votes']) * 100, 1
+                )
+            
+            total_party_line_votes += party_data['total_party_line_votes']
+            total_eligible_votes += party_data['total_eligible_votes']
+        
+        # Overall session average
+        if total_eligible_votes > 0:
+            stats['avg_party_line_percentage'] = round(
+                (total_party_line_votes / total_eligible_votes) * 100, 1
+            )
+    
+    return session_stats
 
 
 def save_party_line_cache(data):

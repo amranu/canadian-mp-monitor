@@ -1903,5 +1903,72 @@ def refresh_party_line_cache():
         print(f"[{datetime.now()}] Error refreshing party-line cache: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/party-line/sessions')
+def get_party_line_sessions():
+    """Get party-line voting statistics by parliamentary session"""
+    try:
+        party_line_data = load_party_line_cache()
+        if not party_line_data:
+            return jsonify({
+                'error': 'Party-line statistics not available',
+                'message': 'Party-line statistics have not been calculated yet or cache has expired'
+            }), 404
+        
+        return jsonify({
+            'sessions': party_line_data.get('session_summary', {}),
+            'sessions_analyzed': party_line_data['summary'].get('sessions_analyzed', []),
+            'summary': party_line_data['summary']
+        })
+        
+    except Exception as e:
+        print(f"[{datetime.now()}] Error serving party-line sessions: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/party-line/session/<session>')
+def get_party_line_session_details(session):
+    """Get detailed party-line statistics for a specific parliamentary session"""
+    try:
+        party_line_data = load_party_line_cache()
+        if not party_line_data:
+            return jsonify({
+                'error': 'Party-line statistics not available',
+                'message': 'Party-line statistics have not been calculated yet or cache has expired'
+            }), 404
+        
+        session_data = party_line_data.get('session_summary', {}).get(session)
+        if not session_data:
+            return jsonify({
+                'error': 'Session not found',
+                'message': f'No party-line statistics available for session: {session}',
+                'available_sessions': party_line_data['summary'].get('sessions_analyzed', [])
+            }), 404
+        
+        # Get MPs for this session
+        session_mps = []
+        for mp_slug, mp_stats in party_line_data['mp_stats'].items():
+            session_stats = mp_stats.get('party_loyalty_by_session', {}).get(session)
+            if session_stats:
+                session_mps.append({
+                    'mp_slug': mp_slug,
+                    'mp_party': mp_stats.get('mp_party'),
+                    'party_line_percentage': session_stats.get('percentage', 0),
+                    'party_line_votes': session_stats.get('party_line', 0),
+                    'total_votes': session_stats.get('total', 0)
+                })
+        
+        # Sort by party-line percentage descending
+        session_mps.sort(key=lambda x: x.get('party_line_percentage', 0), reverse=True)
+        
+        return jsonify({
+            'session': session,
+            'session_stats': session_data,
+            'mps': session_mps,
+            'mp_count': len(session_mps)
+        })
+        
+    except Exception as e:
+        print(f"[{datetime.now()}] Error serving session details for {session}: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

@@ -23,6 +23,8 @@ function MPDetail() {
   const [billsLoading, setBillsLoading] = useState(false);
   const [partyLineStats, setPartyLineStats] = useState(null);
   const [partyLineLoading, setPartyLineLoading] = useState(false);
+  const [partyLineSessions, setPartyLineSessions] = useState(null);
+  const [partyLineSessionsLoading, setPartyLineSessionsLoading] = useState(false);
 
   useEffect(() => {
     loadMP();
@@ -41,6 +43,13 @@ function MPDetail() {
       loadPartyLineStats();
     }
   }, [mpSlug]);
+
+  // Load party-line sessions data when component loads
+  useEffect(() => {
+    if (!partyLineSessions && !partyLineSessionsLoading) {
+      loadPartyLineSessions();
+    }
+  }, []);
 
   // Extract available sessions from votes and set current session as default
   useEffect(() => {
@@ -374,6 +383,20 @@ function MPDetail() {
     }
   };
 
+  const loadPartyLineSessions = async () => {
+    try {
+      setPartyLineSessionsLoading(true);
+      const data = await parliamentApi.getPartyLineSessions();
+      setPartyLineSessions(data);
+      console.log('Party-line sessions loaded:', data);
+    } catch (error) {
+      console.error('Error loading party-line sessions:', error);
+      setPartyLineSessions(null);
+    } finally {
+      setPartyLineSessionsLoading(false);
+    }
+  };
+
   const renderStatistics = () => {
     const stats = calculateStatistics();
     
@@ -522,12 +545,43 @@ function MPDetail() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
                     {Object.entries(partyLineStats.party_loyalty_by_session)
                       .sort(([a], [b]) => b.localeCompare(a))
-                      .map(([session, stats]) => (
-                        <div key={session} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span>Session {session}:</span>
-                          <strong>{stats.percentage}% ({stats.party_line}/{stats.total})</strong>
-                        </div>
-                      ))}
+                      .map(([session, stats]) => {
+                        // Get session average for comparison
+                        const sessionAverage = partyLineSessions?.sessions?.[session]?.avg_party_line_percentage;
+                        const partyAverage = partyLineSessions?.sessions?.[session]?.party_breakdown?.[partyLineStats.mp_party]?.avg_party_line_percentage;
+                        
+                        return (
+                          <div key={session} style={{ 
+                            padding: '8px',
+                            backgroundColor: '#f8f9fa',
+                            borderRadius: '4px',
+                            border: '1px solid #e9ecef'
+                          }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                              <span style={{ fontWeight: '600' }}>Session {session}:</span>
+                              <strong>{stats.percentage}% ({stats.party_line}/{stats.total})</strong>
+                            </div>
+                            {(sessionAverage || partyAverage) && (
+                              <div style={{ fontSize: '12px', color: '#666' }}>
+                                {partyAverage && (
+                                  <span style={{ marginRight: '10px' }}>
+                                    Party avg: {partyAverage}%
+                                    {stats.percentage > partyAverage && <span style={{ color: '#28a745' }}> ↑</span>}
+                                    {stats.percentage < partyAverage && <span style={{ color: '#dc3545' }}> ↓</span>}
+                                  </span>
+                                )}
+                                {sessionAverage && (
+                                  <span>
+                                    Overall avg: {sessionAverage}%
+                                    {stats.percentage > sessionAverage && <span style={{ color: '#28a745' }}> ↑</span>}
+                                    {stats.percentage < sessionAverage && <span style={{ color: '#dc3545' }}> ↓</span>}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                   </div>
                 </div>
               )}
