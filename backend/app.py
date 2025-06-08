@@ -567,7 +567,7 @@ def enrich_bill_with_legisinfo(bill):
     
     return bill
 
-def enrich_bills_with_sponsor_info(bills):
+def enrich_bills_with_sponsor_info(bills, target_session=None):
     """Enrich bills with sponsor information from LEGISinfo"""
     try:
         if not cache['politicians']['data']:
@@ -592,8 +592,19 @@ def enrich_bills_with_sponsor_info(bills):
         enriched_bills = []
         enrichment_count = 0
         
+        # If target_session is specified, only enrich bills from that session
+        bills_to_enrich = bills
+        if target_session:
+            bills_to_enrich = [bill for bill in bills if bill.get('session') == target_session]
+            print(f"[{datetime.now()}] Targeting session {target_session}: {len(bills_to_enrich)} bills to enrich")
+        
         for bill in bills:
             enriched_bill = bill.copy()
+            
+            # Skip enrichment for bills not in target session
+            if target_session and bill.get('session') != target_session:
+                enriched_bills.append(enriched_bill)
+                continue
             
             # Try to get sponsor info from LEGISinfo
             legis_data = fetch_legisinfo_data(bill.get('session', ''), bill.get('number', ''))
@@ -635,7 +646,7 @@ def enrich_bills_with_sponsor_info(bills):
             # Small delay to avoid overwhelming LEGISinfo API
             time.sleep(0.1)
         
-        print(f"[{datetime.now()}] Enriched {enrichment_count} of {len(bills)} bills with sponsor information")
+        print(f"[{datetime.now()}] Enriched {enrichment_count} of {len(bills_to_enrich)} bills with sponsor information")
         return enriched_bills
         
     except Exception as e:
@@ -653,9 +664,9 @@ def update_bills_cache():
         
         all_bills = load_all_bills()
         
-        # Enrich bills with sponsor information
-        print(f"[{datetime.now()}] Enriching bills with sponsor information...")
-        enriched_bills = enrich_bills_with_sponsor_info(all_bills)
+        # Enrich bills with sponsor information (only current session to avoid timeout)
+        print(f"[{datetime.now()}] Enriching bills with sponsor information (current session only)...")
+        enriched_bills = enrich_bills_with_sponsor_info(all_bills, target_session='45-1')
         
         cache['bills']['data'] = enriched_bills
         cache['bills']['expires'] = time.time() + CACHE_DURATION
@@ -1680,6 +1691,52 @@ def refresh_bills_cache():
                 'success': False,
                 'error': 'Failed to update bills cache'
             }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/enrich-current-session-bills', methods=['POST'])
+def enrich_current_session_bills():
+    """Enrich only current session bills with sponsor information"""
+    try:
+        if not cache['bills']['data']:
+            return jsonify({
+                'success': False,
+                'error': 'Bills cache not loaded. Run /api/refresh-bills-cache first.'
+            }), 400
+        
+        print(f"[{datetime.now()}] Enriching current session bills only...")
+        
+        # Re-enrich current session bills
+        enriched_bills = enrich_bills_with_sponsor_info(cache['bills']['data'], target_session='45-1')
+        
+        # Update cache with enriched data
+        cache['bills']['data'] = enriched_bills
+        cache['bills']['expires'] = time.time() + CACHE_DURATION
+        
+        # Save to file
+        save_cache_to_file({
+            'data': enriched_bills,
+            'expires': cache['bills']['expires'],
+            'updated': datetime.now().isoformat()
+        }, BILLS_CACHE_FILE)
+        
+        # Count enriched bills
+        sponsor_count = len([bill for bill in enriched_bills if bill.get('sponsor_politician_url')])
+        current_session_bills = len([bill for bill in enriched_bills if bill.get('session') == '45-1'])
+        current_session_with_sponsors = len([bill for bill in enriched_bills if bill.get('session') == '45-1' and bill.get('sponsor_politician_url')])
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully enriched current session bills',
+            'total_bills': len(enriched_bills),
+            'current_session_bills': current_session_bills,
+            'current_session_with_sponsors': current_session_with_sponsors,
+            'total_bills_with_sponsors': sponsor_count
+        })
+        
     except Exception as e:
         return jsonify({
             'success': False,
