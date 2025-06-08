@@ -1133,13 +1133,33 @@ function MPDetail() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
                         <div style={{
                           padding: '4px 8px',
-                          backgroundColor: bill.number.startsWith('C-') ? '#007bff' : '#6f42c1',
+                          backgroundColor: (() => {
+                            if (bill.number.startsWith('C-')) {
+                              const billNum = parseInt(bill.number.substring(2));
+                              return billNum <= 200 ? '#007bff' : '#20c997';
+                            }
+                            if (bill.number.startsWith('S-')) {
+                              const billNum = parseInt(bill.number.substring(2));
+                              return billNum <= 200 ? '#6f42c1' : '#fd7e14';
+                            }
+                            return '#6c757d';
+                          })(),
                           color: 'white',
                           borderRadius: '4px',
                           fontSize: '12px',
                           fontWeight: 'bold'
                         }}>
-                          {bill.number.startsWith('C-') ? 'House Bill' : 'Senate Bill'}
+                          {(() => {
+                            if (bill.number.startsWith('C-')) {
+                              const billNum = parseInt(bill.number.substring(2));
+                              return billNum <= 200 ? 'Government Bill' : 'Private Member Bill';
+                            }
+                            if (bill.number.startsWith('S-')) {
+                              const billNum = parseInt(bill.number.substring(2));
+                              return billNum <= 200 ? 'Senate Bill' : 'Private Senate Bill';
+                            }
+                            return 'Other';
+                          })()}
                         </div>
                         <div style={{
                           fontSize: '14px',

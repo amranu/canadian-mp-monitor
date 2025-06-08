@@ -113,15 +113,27 @@ function Bills() {
   };
 
   const getBillTypeColor = (number) => {
-    if (number.startsWith('C-')) return '#007bff'; // Government bills - blue
-    if (number.startsWith('S-')) return '#6f42c1'; // Senate bills - purple  
+    if (number.startsWith('C-')) {
+      const billNum = parseInt(number.substring(2));
+      return billNum <= 200 ? '#007bff' : '#20c997'; // Government bills - blue, Private member bills - teal
+    }
+    if (number.startsWith('S-')) {
+      const billNum = parseInt(number.substring(2));
+      return billNum <= 200 ? '#6f42c1' : '#fd7e14'; // Government Senate bills - purple, Private Senate bills - orange
+    }
     if (number.startsWith('M-')) return '#28a745'; // Private member motions - green
     return '#6c757d'; // Other - gray
   };
 
   const getBillTypeLabel = (number) => {
-    if (number.startsWith('C-')) return 'Government Bill';
-    if (number.startsWith('S-')) return 'Senate Bill';
+    if (number.startsWith('C-')) {
+      const billNum = parseInt(number.substring(2));
+      return billNum <= 200 ? 'Government Bill' : 'Private Member Bill';
+    }
+    if (number.startsWith('S-')) {
+      const billNum = parseInt(number.substring(2));
+      return billNum <= 200 ? 'Senate Bill' : 'Private Senate Bill';
+    }
     if (number.startsWith('M-')) return 'Private Motion';
     return 'Other';
   };
