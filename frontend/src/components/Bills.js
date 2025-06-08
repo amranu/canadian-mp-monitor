@@ -316,13 +316,26 @@ function Bills() {
       <div 
         key={`bills-grid-${activeSearch}-${bills.length}`}
         style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', 
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
           gap: '12px',
           marginBottom: '30px',
-          justifyContent: 'center',
-          padding: '0 8px' // Add small side padding
-        }}>
+          width: '100%'
+        }}
+        className="bills-grid"
+      >
+        <style>{`
+          @media (min-width: 769px) {
+            .bills-grid {
+              display: grid !important;
+              grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
+              justify-content: center !important;
+              max-width: 1200px !important;
+              margin: 0 auto !important;
+            }
+          }
+        `}</style>
         {useMemo(() => bills.map((bill) => (
           <BillCard
             key={`${bill.session}-${bill.number}`}
