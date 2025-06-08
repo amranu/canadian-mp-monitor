@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { parliamentApi } from '../services/parliamentApi';
+import BillCard from './BillCard';
 
 function MPDetail() {
   const { mpSlug } = useParams();
@@ -1104,150 +1105,15 @@ function MPDetail() {
             {!billsLoading && sponsoredBills.length > 0 && (
               <div style={{ 
                 display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', 
-                gap: '20px' 
+                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
+                gap: '16px' 
               }}>
                 {sponsoredBills.map((bill) => (
-                  <div
+                  <BillCard
                     key={`${bill.session}-${bill.number}`}
+                    bill={bill}
                     onClick={() => navigate(`/bill/${bill.session}/${bill.number}`)}
-                    style={{
-                      border: '1px solid #ddd',
-                      borderRadius: '8px',
-                      padding: '20px',
-                      backgroundColor: 'white',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                      cursor: 'pointer',
-                      transition: 'box-shadow 0.2s, transform 0.1s'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
-                      e.target.style.transform = 'translateY(-1px)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
-                      e.target.style.transform = 'translateY(0)';
-                    }}
-                  >
-                    <div style={{ marginBottom: '15px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                        <div style={{
-                          padding: '4px 8px',
-                          backgroundColor: (() => {
-                            if (bill.number.startsWith('C-')) {
-                              const billNum = parseInt(bill.number.substring(2));
-                              return billNum <= 200 ? '#007bff' : '#20c997';
-                            }
-                            if (bill.number.startsWith('S-')) {
-                              const billNum = parseInt(bill.number.substring(2));
-                              return billNum <= 200 ? '#6f42c1' : '#fd7e14';
-                            }
-                            return '#6c757d';
-                          })(),
-                          color: 'white',
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          fontWeight: 'bold'
-                        }}>
-                          {(() => {
-                            if (bill.number.startsWith('C-')) {
-                              const billNum = parseInt(bill.number.substring(2));
-                              return billNum <= 200 ? 'Government Bill' : 'Private Member Bill';
-                            }
-                            if (bill.number.startsWith('S-')) {
-                              const billNum = parseInt(bill.number.substring(2));
-                              return billNum <= 200 ? 'Senate Bill' : 'Private Senate Bill';
-                            }
-                            return 'Other';
-                          })()}
-                        </div>
-                        <div style={{
-                          fontSize: '14px',
-                          color: '#666',
-                          fontWeight: 'bold'
-                        }}>
-                          {bill.session} - {bill.number}
-                        </div>
-                      </div>
-
-                      <h3 style={{
-                        margin: '0 0 10px 0',
-                        fontSize: '18px',
-                        lineHeight: '1.4',
-                        color: '#333',
-                        fontWeight: '600'
-                      }}>
-                        {bill.name?.en || 'Bill name not available'}
-                      </h3>
-
-                      {bill.name?.fr && bill.name.fr !== bill.name?.en && (
-                        <p style={{
-                          margin: '0 0 10px 0',
-                          fontSize: '14px',
-                          color: '#666',
-                          fontStyle: 'italic',
-                          lineHeight: '1.3'
-                        }}>
-                          {bill.name.fr}
-                        </p>
-                      )}
-                    </div>
-
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      fontSize: '14px',
-                      color: '#666'
-                    }}>
-                      <span>
-                        <strong>Introduced:</strong> {new Date(bill.introduced).toLocaleDateString('en-CA')}
-                      </span>
-                      <span>
-                        <strong>Session:</strong> {bill.session}
-                      </span>
-                    </div>
-
-                    {/* LEGISinfo Link */}
-                    <div style={{
-                      marginTop: '12px',
-                      paddingTop: '12px',
-                      borderTop: '1px solid #e9ecef'
-                    }}>
-                      <a
-                        href={`https://www.parl.ca/legisinfo/en/bill/${bill.session}/${bill.number.toLowerCase()}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          color: '#007bff',
-                          textDecoration: 'none',
-                          fontSize: '12px',
-                          fontWeight: '500',
-                          padding: '4px 8px',
-                          backgroundColor: '#f8f9fa',
-                          borderRadius: '4px',
-                          border: '1px solid #dee2e6',
-                          transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.target.style.backgroundColor = '#e3f2fd';
-                          e.target.style.borderColor = '#90caf9';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.target.style.backgroundColor = '#f8f9fa';
-                          e.target.style.borderColor = '#dee2e6';
-                        }}
-                      >
-                        <span>🏛️</span>
-                        Official Bill Details
-                        <span style={{ fontSize: '10px' }}>↗</span>
-                      </a>
-                    </div>
-                  </div>
+                  />
                 ))}
               </div>
             )}
