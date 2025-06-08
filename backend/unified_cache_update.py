@@ -265,7 +265,8 @@ class UnifiedCacheUpdater:
         # Find new votes not in cache
         new_votes = []
         for vote in recent_votes_data['objects']:
-            vote_id = vote['url'].replace('/votes/', '').replace('/', '_')
+            # Convert /votes/45-1/4/ to 45-1_4 (compatible with existing cache format)
+            vote_id = vote['url'].replace('/votes/', '').replace('/', '_').rstrip('_')
             if vote_id not in cached_vote_ids:
                 new_votes.append((vote_id, vote))
         
