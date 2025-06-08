@@ -53,7 +53,7 @@ function BillCard({ bill, onClick }) {
       style={{
         border: '1px solid #ddd',
         borderRadius: '8px',
-        padding: '16px',
+        padding: '12px',
         backgroundColor: 'white',
         boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
         cursor: 'pointer',

@@ -582,7 +582,7 @@ function MPDetail() {
   }
 
   return (
-    <div style={{ padding: '20px' }}>
+    <div style={{ padding: '12px' }}>
       <button 
         onClick={() => navigate('/')}
         style={{ 
@@ -1105,9 +1105,10 @@ function MPDetail() {
             {!billsLoading && sponsoredBills.length > 0 && (
               <div style={{ 
                 display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-                gap: '16px',
-                justifyContent: 'center'
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', 
+                gap: '12px',
+                justifyContent: 'center',
+                padding: '0 8px' // Add small side padding
               }}>
                 {sponsoredBills.map((bill) => (
                   <BillCard

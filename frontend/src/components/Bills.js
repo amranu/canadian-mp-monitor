@@ -113,7 +113,7 @@ function Bills() {
 
 
   return (
-    <div style={{ padding: '20px' }}>
+    <div style={{ padding: '12px' }}>
       <div style={{ marginBottom: '30px' }}>
         <h1 style={{ margin: '0 0 10px 0' }}>Parliamentary Bills</h1>
         <p style={{ color: '#666', marginBottom: '20px' }}>
@@ -317,10 +317,11 @@ function Bills() {
         key={`bills-grid-${activeSearch}-${bills.length}`}
         style={{ 
           display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-          gap: '16px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', 
+          gap: '12px',
           marginBottom: '30px',
-          justifyContent: 'center'
+          justifyContent: 'center',
+          padding: '0 8px' // Add small side padding
         }}>
         {useMemo(() => bills.map((bill) => (
           <BillCard
