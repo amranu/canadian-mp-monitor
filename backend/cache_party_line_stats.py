@@ -376,9 +376,21 @@ def get_votes_for_mp_analysis(mp_slug, max_votes=500):
     votes_by_session = {}
     for vote_file in vote_files:
         vote_id = os.path.basename(vote_file).replace('.json', '')
-        # Extract session from vote_id (e.g., "44-1_451" -> "44-1")
-        if '_' in vote_id:
+        
+        # Extract session from vote_id, handling both formats:
+        # New format: "44-1_451_" -> "44-1"
+        # Old format: "_votes_44-1_1_" -> "44-1"
+        session = None
+        if vote_id.startswith('_votes_'):
+            # Old format: _votes_44-1_1_ -> extract 44-1
+            parts = vote_id.split('_')
+            if len(parts) >= 3:
+                session = parts[2]  # _votes_44-1_1_ -> parts[2] = "44-1"
+        elif '_' in vote_id:
+            # New format: 44-1_451_ -> extract 44-1
             session = vote_id.split('_')[0]
+        
+        if session and session in session_priority:
             if session not in votes_by_session:
                 votes_by_session[session] = []
             votes_by_session[session].append(vote_file)
