@@ -64,9 +64,7 @@ function Bills() {
       const data = await parliamentApi.getBills(10000, 0, filters); // Large limit to get all
       
       setAllBills(data.objects);
-      if (!searchQuery) {
-        setBills(data.objects);
-      }
+      // Don't set bills here - let the search useEffect handle it based on searchQuery
       setTotalCount(data.total_count || data.objects.length);
       setHasMore(false); // Disable pagination since we load all bills
       setOffset(0);
