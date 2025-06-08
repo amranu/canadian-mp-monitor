@@ -1105,8 +1105,9 @@ function MPDetail() {
             {!billsLoading && sponsoredBills.length > 0 && (
               <div style={{ 
                 display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
-                gap: '16px' 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+                gap: '16px',
+                justifyContent: 'center'
               }}>
                 {sponsoredBills.map((bill) => (
                   <BillCard

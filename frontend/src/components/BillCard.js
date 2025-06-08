@@ -59,7 +59,9 @@ function BillCard({ bill, onClick }) {
         cursor: 'pointer',
         transition: 'box-shadow 0.2s, transform 0.1s',
         minWidth: 0, // Allow shrinking below content size
-        width: '100%'
+        width: '100%',
+        maxWidth: '400px', // Prevent cards from getting too wide on large screens
+        margin: '0 auto' // Center the card within its grid cell
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';

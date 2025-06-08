@@ -317,9 +317,10 @@ function Bills() {
         key={`bills-grid-${activeSearch}-${bills.length}`}
         style={{ 
           display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
           gap: '16px',
-          marginBottom: '30px'
+          marginBottom: '30px',
+          justifyContent: 'center'
         }}>
         {useMemo(() => bills.map((bill) => (
           <BillCard
