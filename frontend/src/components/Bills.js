@@ -30,11 +30,14 @@ function Bills() {
     // Apply search query filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
+      console.log('Filtering bills with query:', query);
+      console.log('Total bills before filter:', allBills.length);
       filteredBills = filteredBills.filter(bill => 
         bill.name?.en?.toLowerCase().includes(query) ||
         bill.name?.fr?.toLowerCase().includes(query) ||
         bill.number?.toLowerCase().includes(query)
       );
+      console.log('Bills after filter:', filteredBills.length);
     }
     
     setBills(filteredBills);
@@ -63,6 +66,7 @@ function Bills() {
       // Load all bills for the current filters to enable real-time search
       const data = await parliamentApi.getBills(10000, 0, filters); // Large limit to get all
       
+      console.log('Loaded bills data:', data.objects.length, 'bills');
       setAllBills(data.objects);
       // Don't set bills here - let the search useEffect handle it based on searchQuery
       setTotalCount(data.total_count || data.objects.length);
