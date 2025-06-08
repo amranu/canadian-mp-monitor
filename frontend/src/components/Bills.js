@@ -5,6 +5,7 @@ import { parliamentApi } from '../services/parliamentApi';
 function Bills() {
   const navigate = useNavigate();
   const [bills, setBills] = useState([]);
+  const [allBills, setAllBills] = useState([]); // Store all bills for client-side filtering
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sessionFilter, setSessionFilter] = useState('');
@@ -20,13 +21,33 @@ function Bills() {
     loadBills();
   }, [sessionFilter, typeFilter, hasVotesFilter]);
 
+  // Real-time search filtering
+  useEffect(() => {
+    if (!allBills.length) return;
+    
+    let filteredBills = allBills;
+    
+    // Apply search query filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filteredBills = filteredBills.filter(bill => 
+        bill.name?.en?.toLowerCase().includes(query) ||
+        bill.name?.fr?.toLowerCase().includes(query) ||
+        bill.number?.toLowerCase().includes(query)
+      );
+    }
+    
+    setBills(filteredBills);
+    setTotalCount(filteredBills.length);
+    setHasMore(false); // Disable pagination for filtered results
+  }, [searchQuery, allBills]);
+
   const loadBills = async (resetOffset = true) => {
     try {
       setLoading(true);
       if (resetOffset) {
         setFilterLoading(true);
       }
-      const newOffset = resetOffset ? 0 : offset;
       
       const filters = {};
       if (sessionFilter) {
@@ -39,23 +60,23 @@ function Bills() {
         filters.has_votes = 'true';
       }
 
-      const data = await parliamentApi.getBills(50, newOffset, filters);
+      // Load all bills for the current filters to enable real-time search
+      const data = await parliamentApi.getBills(10000, 0, filters); // Large limit to get all
       
-      if (resetOffset) {
+      setAllBills(data.objects);
+      if (!searchQuery) {
         setBills(data.objects);
-        setOffset(50);
-        
-        // Extract available sessions
+      }
+      setTotalCount(data.total_count || data.objects.length);
+      setHasMore(false); // Disable pagination since we load all bills
+      setOffset(0);
+      
+      // Extract available sessions (only do this once on initial load)
+      if (!availableSessions.length) {
         const allData = await parliamentApi.getBills(1000, 0);
         const sessions = [...new Set(allData.objects.map(bill => bill.session))].sort().reverse();
         setAvailableSessions(sessions);
-      } else {
-        setBills(prevBills => [...prevBills, ...data.objects]);
-        setOffset(prevOffset => prevOffset + 50);
       }
-      
-      setTotalCount(data.total_count || data.objects.length);
-      setHasMore(data.objects.length === 50); // If we got a full page, there might be more
       
     } catch (error) {
       console.error('Error loading bills:', error);
@@ -71,47 +92,8 @@ function Bills() {
     }
   };
 
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) {
-      loadBills();
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const filters = {};
-      if (sessionFilter) {
-        filters.session = sessionFilter;
-      }
-      if (typeFilter) {
-        filters.type = typeFilter;
-      }
-      if (hasVotesFilter) {
-        filters.has_votes = 'true';
-      }
-      
-      const data = await parliamentApi.searchBills(searchQuery, filters);
-      setBills(data.objects);
-      setTotalCount(data.total_count);
-      setHasMore(false); // Search results are not paginated
-      setOffset(0);
-    } catch (error) {
-      console.error('Error searching bills:', error);
-    } finally {
-      setLoading(false);
-      setFilterLoading(false);
-    }
-  };
-
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleSearch();
-    }
-  };
-
   const clearSearch = () => {
     setSearchQuery('');
-    loadBills();
   };
 
   const formatBillNumber = (bill) => {
@@ -166,7 +148,6 @@ function Bills() {
               placeholder="Search bills by name or number..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyPress={handleKeyPress}
               style={{
                 flex: '1',
                 padding: '10px 15px',
@@ -176,20 +157,6 @@ function Bills() {
                 outline: 'none'
               }}
             />
-            <button
-              onClick={handleSearch}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: '#007bff',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '16px'
-              }}
-            >
-              Search
-            </button>
             {searchQuery && (
               <button
                 onClick={clearSearch}
