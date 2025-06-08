@@ -432,8 +432,8 @@ class UnifiedCacheUpdater:
             enriched_bills = []
             enrichment_count = 0
             
-            # Target recent sessions for enrichment
-            target_sessions = ['45-1', '44-1', '43-2', '43-1']
+            # Target recent sessions for enrichment (match Flask backend)
+            target_sessions = ['45-1', '44-1', '43-2', '43-1', '42-1', '41-2', '41-1']
             
             for bill in bills:
                 enriched_bill = bill.copy()
