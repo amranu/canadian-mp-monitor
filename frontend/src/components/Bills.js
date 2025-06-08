@@ -6,6 +6,11 @@ function Bills() {
   const navigate = useNavigate();
   const [bills, setBills] = useState([]);
   const [allBills, setAllBills] = useState([]); // Store all bills for client-side filtering
+  
+  // Debug logging for state changes
+  useEffect(() => {
+    console.log('bills state changed, now has:', bills.length, 'bills');
+  }, [bills]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sessionFilter, setSessionFilter] = useState('');
@@ -43,10 +48,12 @@ function Bills() {
     setBills(filteredBills);
     setTotalCount(filteredBills.length);
     setHasMore(false); // Disable pagination for filtered results
+    console.log('Updated bills state to show:', filteredBills.length, 'bills');
   }, [searchQuery, allBills]);
 
   const loadBills = async (resetOffset = true) => {
     try {
+      console.log('loadBills called with resetOffset:', resetOffset);
       setLoading(true);
       if (resetOffset) {
         setFilterLoading(true);
