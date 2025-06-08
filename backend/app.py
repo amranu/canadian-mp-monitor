@@ -1290,7 +1290,8 @@ def cache_mp_votes_background(mp_slug):
         cache['mp_votes'][mp_slug] = {'loading': True, 'data': None, 'expires': 0}
         
         print(f"[{datetime.now()}] Background caching votes for {mp_slug}")
-        votes = get_mp_voting_records(mp_slug, 1000)  # Increased to 1000 to capture all session 44-1 votes (928 total)
+        # Use comprehensive cache instead of API calls to get accurate vote counts
+        votes = build_mp_votes_from_comprehensive_cache(mp_slug)
         
         expires_time = time.time() + CACHE_DURATION
         cache['mp_votes'][mp_slug] = {
@@ -1307,7 +1308,7 @@ def cache_mp_votes_background(mp_slug):
             'updated': datetime.now().isoformat()
         }, mp_cache_file)
         
-        print(f"[{datetime.now()}] Cached {len(votes)} votes for {mp_slug}")
+        print(f"[{datetime.now()}] Cached {len(votes)} votes for {mp_slug} from comprehensive cache")
         
     except Exception as e:
         print(f"[{datetime.now()}] Error caching votes for {mp_slug}: {e}")
