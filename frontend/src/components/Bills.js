@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { parliamentApi } from '../services/parliamentApi';
 
@@ -7,10 +7,6 @@ function Bills() {
   const [bills, setBills] = useState([]);
   const [allBills, setAllBills] = useState([]); // Store all bills for client-side filtering
   
-  // Debug logging for state changes
-  useEffect(() => {
-    console.log('bills state changed, now has:', bills.length, 'bills');
-  }, [bills]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState(''); // Input field value
@@ -37,25 +33,20 @@ function Bills() {
     // Apply search query filter only when activeSearch is set
     if (activeSearch.trim()) {
       const query = activeSearch.toLowerCase();
-      console.log('Filtering bills with query:', query);
-      console.log('Total bills before filter:', allBills.length);
       filteredBills = filteredBills.filter(bill => 
         bill.name?.en?.toLowerCase().includes(query) ||
         bill.name?.fr?.toLowerCase().includes(query) ||
         bill.number?.toLowerCase().includes(query)
       );
-      console.log('Bills after filter:', filteredBills.length);
     }
     
     setBills(filteredBills);
     setTotalCount(filteredBills.length);
     setHasMore(false); // Disable pagination for filtered results
-    console.log('Updated bills state to show:', filteredBills.length, 'bills');
   }, [activeSearch, allBills]);
 
   const loadBills = async (resetOffset = true) => {
     try {
-      console.log('loadBills called with resetOffset:', resetOffset);
       setLoading(true);
       if (resetOffset) {
         setFilterLoading(true);
@@ -75,7 +66,6 @@ function Bills() {
       // Load all bills for the current filters to enable real-time search
       const data = await parliamentApi.getBills(10000, 0, filters); // Large limit to get all
       
-      console.log('Loaded bills data:', data.objects.length, 'bills');
       setAllBills(data.objects);
       // Don't set bills here - let the search useEffect handle it based on searchQuery
       setTotalCount(data.total_count || data.objects.length);
@@ -199,13 +189,14 @@ function Bills() {
               disabled={!searchInput.trim()}
               style={{
                 padding: '10px 20px',
-                backgroundColor: searchInput.trim() ? '#007bff' : '#6c757d',
+                backgroundColor: '#007bff',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
-                cursor: searchInput.trim() ? 'pointer' : 'not-allowed',
+                cursor: 'pointer',
                 fontSize: '16px',
-                fontWeight: '500'
+                fontWeight: '500',
+                opacity: searchInput.trim() ? 1 : 0.5
               }}
             >
               Search
@@ -370,10 +361,7 @@ function Bills() {
           gap: '20px',
           marginBottom: '30px'
         }}>
-        <div style={{gridColumn: '1 / -1', background: '#f0f0f0', padding: '10px', fontSize: '12px', color: '#666'}}>
-          DEBUG: Rendering {bills.length} bills (activeSearch: "{activeSearch}")
-        </div>
-        {bills.map((bill) => (
+        {useMemo(() => bills.map((bill) => (
           <div
             key={`${bill.session}-${bill.number}`}
             onClick={() => navigate(`/bill/${bill.session}/${bill.number}`)}
@@ -496,7 +484,7 @@ function Bills() {
               </div>
             )}
           </div>
-        ))}
+        )), [bills, navigate])}
       </div>
 
       {/* Loading State */}
