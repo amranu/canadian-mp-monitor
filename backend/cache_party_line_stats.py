@@ -375,40 +375,73 @@ def get_mp_list_from_cache():
     return {}
 
 def get_votes_for_mp_analysis(mp_slug, max_votes=500):
-    """Get a limited set of votes for MP analysis to reduce memory usage"""
+    """Get votes for MP analysis, prioritizing by session (45-1, 44-1, 43-2, etc.)"""
     vote_files = glob.glob(os.path.join(VOTE_DETAILS_CACHE_DIR, '*.json'))
     votes_data = {}
     
-    # Limit to recent votes to reduce memory usage
-    vote_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+    # Define session priority order (most recent first)
+    session_priority = ['45-1', '44-1', '43-2', '43-1', '42-1', '41-2', '41-1', '40-3', '40-2', '40-1', '39-2', '39-1']
+    
+    # Group vote files by session
+    votes_by_session = {}
+    for vote_file in vote_files:
+        vote_id = os.path.basename(vote_file).replace('.json', '')
+        # Extract session from vote_id (e.g., "44-1_451" -> "44-1")
+        if '_' in vote_id:
+            session = vote_id.split('_')[0]
+            if session not in votes_by_session:
+                votes_by_session[session] = []
+            votes_by_session[session].append(vote_file)
     
     processed_votes = 0
-    for vote_file in vote_files[:max_votes]:  # Limit number of votes processed
-        if processed_votes >= max_votes:
-            break
+    mp_politician_url = f'/politicians/{mp_slug}/'
+    
+    # Process sessions in priority order
+    for session in session_priority:
+        if session not in votes_by_session:
+            continue
             
-        vote_id = os.path.basename(vote_file).replace('.json', '')
-        vote_data = load_vote_details(vote_id)
+        print(f"  Checking session {session} for {mp_slug}...")
+        session_vote_count = 0
         
-        if vote_data and 'ballots' in vote_data:
-            # Check if this MP is in this vote before including it
-            mp_found = False
-            for ballot in vote_data['ballots']:
-                # Check politician_url field (main field in vote data)
-                politician_url = ballot.get('politician_url', '')
-                if f'/politicians/{mp_slug}/' in politician_url:
-                    mp_found = True
-                    break
+        # Sort files in this session by modification time (most recent first)
+        session_files = votes_by_session[session]
+        session_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+        
+        for vote_file in session_files:
+            if processed_votes >= max_votes:
+                break
                 
-                # Fallback: check other possible fields
-                if (mp_slug in str(ballot.get('mp_slug', '')) or 
-                    mp_slug.replace('-', ' ').lower() in str(ballot.get('mp_name', '')).lower()):
-                    mp_found = True
-                    break
+            vote_id = os.path.basename(vote_file).replace('.json', '')
+            vote_data = load_vote_details(vote_id)
             
-            if mp_found:
-                votes_data[vote_id] = vote_data
-                processed_votes += 1
+            if vote_data and 'ballots' in vote_data:
+                # Check if this MP is in this vote
+                mp_found = False
+                for ballot in vote_data['ballots']:
+                    politician_url = ballot.get('politician_url', '')
+                    if politician_url == mp_politician_url:
+                        mp_found = True
+                        break
+                    
+                    # Fallback: check other possible fields
+                    if (mp_slug in str(ballot.get('mp_slug', '')) or 
+                        mp_slug.replace('-', ' ').lower() in str(ballot.get('mp_name', '')).lower()):
+                        mp_found = True
+                        break
+                
+                if mp_found:
+                    votes_data[vote_id] = vote_data
+                    processed_votes += 1
+                    session_vote_count += 1
+        
+        if session_vote_count > 0:
+            print(f"  Found {session_vote_count} votes in session {session} for {mp_slug}")
+        
+        # If we found substantial votes in this session, we can stop here for efficiency
+        # (unless we need votes from multiple sessions)
+        if processed_votes >= 50:  # Found substantial voting record
+            break
     
     return votes_data
 
