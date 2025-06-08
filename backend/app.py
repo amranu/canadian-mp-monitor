@@ -1809,10 +1809,81 @@ def get_mp_party_line_stats(mp_slug):
                 'message': f'Party-line statistics not available for MP: {mp_slug}'
             }), 404
         
-        return jsonify(mp_stats)
+        # Check if session parameter is provided for session-specific stats
+        session_filter = request.args.get('session')
+        
+        if session_filter:
+            # Return session-specific stats
+            session_stats = mp_stats.get('party_loyalty_by_session', {}).get(session_filter)
+            if not session_stats:
+                return jsonify({
+                    'error': 'Session not found',
+                    'message': f'No party-line statistics available for MP {mp_slug} in session {session_filter}',
+                    'available_sessions': list(mp_stats.get('party_loyalty_by_session', {}).keys())
+                }), 404
+            
+            # Return session-specific data with enhanced structure
+            return jsonify({
+                'mp_slug': mp_slug,
+                'mp_party': mp_stats.get('mp_party'),
+                'session': session_filter,
+                'party_line_votes': session_stats.get('party_line', 0),
+                'total_eligible_votes': session_stats.get('total', 0),
+                'party_line_percentage': session_stats.get('percentage', 0),
+                'methodology': 'actual_party_majority',
+                'calculated_at': mp_stats.get('calculated_at'),
+                'party_loyalty_by_session': mp_stats.get('party_loyalty_by_session', {}),
+                'party_discipline_breaks': mp_stats.get('party_discipline_breaks', [])
+            })
+        else:
+            # Return overall stats (original behavior)
+            return jsonify(mp_stats)
         
     except Exception as e:
         print(f"[{datetime.now()}] Error serving MP party-line stats for {mp_slug}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/party-line/mp/<mp_slug>/session/<session>')
+def get_mp_party_line_stats_for_session(mp_slug, session):
+    """Get party-line voting statistics for a specific MP in a specific session"""
+    try:
+        party_line_data = load_party_line_cache()
+        if not party_line_data:
+            return jsonify({
+                'error': 'Party-line statistics not available',
+                'message': 'Party-line statistics have not been calculated yet or cache has expired'
+            }), 404
+        
+        mp_stats = party_line_data['mp_stats'].get(mp_slug)
+        if not mp_stats:
+            return jsonify({
+                'error': 'MP not found',
+                'message': f'Party-line statistics not available for MP: {mp_slug}'
+            }), 404
+        
+        # Get session-specific stats
+        session_stats = mp_stats.get('party_loyalty_by_session', {}).get(session)
+        if not session_stats:
+            return jsonify({
+                'error': 'Session not found',
+                'message': f'No party-line statistics available for MP {mp_slug} in session {session}',
+                'available_sessions': list(mp_stats.get('party_loyalty_by_session', {}).keys())
+            }), 404
+        
+        # Return session-specific party-line data
+        return jsonify({
+            'mp_slug': mp_slug,
+            'mp_party': mp_stats.get('mp_party'),
+            'session': session,
+            'party_line_votes': session_stats.get('party_line', 0),
+            'total_eligible_votes': session_stats.get('total', 0),
+            'party_line_percentage': session_stats.get('percentage', 0),
+            'methodology': 'actual_party_majority',
+            'calculated_at': mp_stats.get('calculated_at')
+        })
+        
+    except Exception as e:
+        print(f"[{datetime.now()}] Error serving MP session party-line stats for {mp_slug}/{session}: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/party-line/all')

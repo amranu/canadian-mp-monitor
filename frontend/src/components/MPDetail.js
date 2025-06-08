@@ -37,12 +37,12 @@ function MPDetail() {
     }
   }, [mp]);
 
-  // Load party-line statistics when component loads
+  // Load party-line statistics when component loads or session changes
   useEffect(() => {
-    if (mpSlug && !partyLineStats && !partyLineLoading) {
+    if (mpSlug && !partyLineLoading) {
       loadPartyLineStats();
     }
-  }, [mpSlug]);
+  }, [mpSlug, selectedSession]);
 
   // Load party-line sessions data when component loads
   useEffect(() => {
@@ -79,6 +79,40 @@ function MPDetail() {
     if (!votes || votes.length === 0) return [];
     if (selectedSession === 'all') return votes;
     return votes.filter(vote => vote.session === selectedSession);
+  };
+
+  // Get session-specific party-line statistics
+  const getSessionPartyLineStats = () => {
+    if (!partyLineStats) return null;
+    
+    // If 'all' sessions selected, return overall stats
+    if (selectedSession === 'all') {
+      return {
+        percentage: partyLineStats.party_line_percentage,
+        votes: partyLineStats.party_line_votes,
+        total: partyLineStats.total_eligible_votes,
+        label: 'Overall'
+      };
+    }
+    
+    // Get session-specific stats
+    const sessionStats = partyLineStats.party_loyalty_by_session?.[selectedSession];
+    if (sessionStats) {
+      return {
+        percentage: sessionStats.percentage,
+        votes: sessionStats.party_line,
+        total: sessionStats.total,
+        label: `Session ${selectedSession}`
+      };
+    }
+    
+    // Fallback to overall if session not found
+    return {
+      percentage: partyLineStats.party_line_percentage,
+      votes: partyLineStats.party_line_votes,
+      total: partyLineStats.total_eligible_votes,
+      label: 'Overall'
+    };
   };
 
   const calculateStatistics = () => {
@@ -371,7 +405,9 @@ function MPDetail() {
   const loadPartyLineStats = async () => {
     try {
       setPartyLineLoading(true);
-      const data = await parliamentApi.getMPPartyLineStats(mpSlug);
+      // Pass session parameter if a specific session is selected (not 'all' or 'current')
+      const sessionParam = (selectedSession !== 'all' && selectedSession !== 'current') ? selectedSession : null;
+      const data = await parliamentApi.getMPPartyLineStats(mpSlug, sessionParam);
       setPartyLineStats(data);
       console.log('Party-line stats loaded:', data);
     } catch (error) {
@@ -497,7 +533,14 @@ function MPDetail() {
               border: '1px solid #dee2e6',
               textAlign: 'center'
             }}>
-              <h3 style={{ margin: '0 0 10px 0', color: '#495057' }}>Party-Line Voting</h3>
+              <h3 style={{ margin: '0 0 10px 0', color: '#495057' }}>
+                Party-Line Voting
+                {partyLineStats.session && (
+                  <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#666', marginTop: '4px' }}>
+                    Session {partyLineStats.session}
+                  </div>
+                )}
+              </h3>
               <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#495057' }}>
                 {partyLineStats.party_line_percentage}%
               </div>

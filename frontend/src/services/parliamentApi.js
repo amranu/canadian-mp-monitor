@@ -375,8 +375,8 @@ export const parliamentApi = {
     return data;
   },
 
-  async getMPPartyLineStats(mpSlug) {
-    const cacheKey = `party-line-mp-${mpSlug}`;
+  async getMPPartyLineStats(mpSlug, session = null) {
+    const cacheKey = session ? `party-line-mp-${mpSlug}-session-${session}` : `party-line-mp-${mpSlug}`;
     
     // Check cache first
     const cachedData = cache.get(cacheKey);
@@ -384,7 +384,9 @@ export const parliamentApi = {
       return cachedData;
     }
     
-    const url = `${API_BASE}/party-line/mp/${mpSlug}`;
+    const url = session 
+      ? `${API_BASE}/party-line/mp/${mpSlug}?session=${session}`
+      : `${API_BASE}/party-line/mp/${mpSlug}`;
     console.log('Fetching MP party-line stats from:', url);
     
     const response = await fetch(url, { headers });
@@ -395,6 +397,33 @@ export const parliamentApi = {
     
     const data = await response.json();
     console.log('MP party-line stats loaded:', data);
+    
+    // Cache the response
+    cache.set(cacheKey, data);
+    
+    return data;
+  },
+
+  async getMPPartyLineStatsForSession(mpSlug, session) {
+    const cacheKey = `party-line-mp-${mpSlug}-session-${session}`;
+    
+    // Check cache first
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+    
+    const url = `${API_BASE}/party-line/mp/${mpSlug}/session/${session}`;
+    console.log('Fetching MP party-line stats for session from:', url);
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('MP party-line stats for session loaded:', data);
     
     // Cache the response
     cache.set(cacheKey, data);
