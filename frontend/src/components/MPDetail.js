@@ -532,10 +532,6 @@ function MPDetail() {
                     <span>Votes Analyzed:</span>
                     <strong>{partyLineStats.total_eligible_votes}</strong>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Average Party Cohesion:</span>
-                    <strong>{partyLineStats.avg_party_cohesion}%</strong>
-                  </div>
                 </div>
               </div>
 

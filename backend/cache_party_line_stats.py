@@ -213,7 +213,6 @@ def calculate_mp_party_line_stats(mp_slug, mp_party, votes_data, politicians_loo
     total_eligible_votes = 0
     party_discipline_breaks = []
     party_loyalty_by_session = defaultdict(lambda: {'party_line': 0, 'total': 0})
-    cohesion_stats = []
     
     # Process each vote to calculate party-line adherence
     for vote_id, vote_data in votes_data.items():
@@ -274,7 +273,6 @@ def calculate_mp_party_line_stats(mp_slug, mp_party, votes_data, politicians_loo
                     'vote_id': vote_id,
                     'mp_vote': mp_ballot,
                     'party_position': party_stats['majority_position'],
-                    'party_cohesion': party_stats['cohesion'],
                     'date': vote_info.get('date'),
                     'description': vote_info.get('description', {}).get('en', 'Parliamentary Vote')
                 })
@@ -285,12 +283,6 @@ def calculate_mp_party_line_stats(mp_slug, mp_party, votes_data, politicians_loo
             if voted_with_party:
                 party_loyalty_by_session[session]['party_line'] += 1
             
-            # Track cohesion stats
-            cohesion_stats.append({
-                'vote_id': vote_id,
-                'cohesion': party_stats['cohesion'],
-                'voted_with_party': voted_with_party
-            })
             
         except Exception as e:
             print(f"Error processing vote {vote_id} for {mp_slug}: {e}")
@@ -298,7 +290,6 @@ def calculate_mp_party_line_stats(mp_slug, mp_party, votes_data, politicians_loo
     
     # Calculate final statistics
     party_line_percentage = (party_line_votes / total_eligible_votes * 100) if total_eligible_votes > 0 else 0
-    avg_party_cohesion = (sum(stat['cohesion'] for stat in cohesion_stats) / len(cohesion_stats)) if cohesion_stats else 0
     
     # Calculate session percentages
     session_stats = {}
@@ -318,7 +309,6 @@ def calculate_mp_party_line_stats(mp_slug, mp_party, votes_data, politicians_loo
         'party_line_percentage': round(party_line_percentage, 1),
         'party_discipline_breaks': party_discipline_breaks[:10],  # Limit to 10 most recent
         'party_loyalty_by_session': session_stats,
-        'avg_party_cohesion': round(avg_party_cohesion, 1),
         'methodology': 'actual_party_majority',
         'calculated_at': datetime.now().isoformat()
     }
