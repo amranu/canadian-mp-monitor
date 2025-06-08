@@ -13,6 +13,8 @@ function Bills() {
   }, [bills]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchInput, setSearchInput] = useState(''); // Input field value
+  const [activeSearch, setActiveSearch] = useState(''); // Currently applied search
   const [sessionFilter, setSessionFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [hasVotesFilter, setHasVotesFilter] = useState(false);
@@ -26,15 +28,15 @@ function Bills() {
     loadBills();
   }, [sessionFilter, typeFilter, hasVotesFilter]);
 
-  // Real-time search filtering
+  // Button-based search filtering
   useEffect(() => {
     if (!allBills.length) return;
     
     let filteredBills = allBills;
     
-    // Apply search query filter
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+    // Apply search query filter only when activeSearch is set
+    if (activeSearch.trim()) {
+      const query = activeSearch.toLowerCase();
       console.log('Filtering bills with query:', query);
       console.log('Total bills before filter:', allBills.length);
       filteredBills = filteredBills.filter(bill => 
@@ -49,7 +51,7 @@ function Bills() {
     setTotalCount(filteredBills.length);
     setHasMore(false); // Disable pagination for filtered results
     console.log('Updated bills state to show:', filteredBills.length, 'bills');
-  }, [searchQuery, allBills]);
+  }, [activeSearch, allBills]);
 
   const loadBills = async (resetOffset = true) => {
     try {
@@ -101,8 +103,21 @@ function Bills() {
     }
   };
 
+  const handleSearch = () => {
+    setActiveSearch(searchInput);
+    setSearchQuery(searchInput); // Keep for display purposes
+  };
+
   const clearSearch = () => {
+    setSearchInput('');
+    setActiveSearch('');
     setSearchQuery('');
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
   };
 
   const formatBillNumber = (bill) => {
@@ -167,8 +182,9 @@ function Bills() {
             <input
               type="text"
               placeholder="Search bills by name or number..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyPress={handleKeyPress}
               style={{
                 flex: '1',
                 padding: '10px 15px',
@@ -178,7 +194,23 @@ function Bills() {
                 outline: 'none'
               }}
             />
-            {searchQuery && (
+            <button
+              onClick={handleSearch}
+              disabled={!searchInput.trim()}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: searchInput.trim() ? '#007bff' : '#6c757d',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: searchInput.trim() ? 'pointer' : 'not-allowed',
+                fontSize: '16px',
+                fontWeight: '500'
+              }}
+            >
+              Search
+            </button>
+            {activeSearch && (
               <button
                 onClick={clearSearch}
                 style={{
@@ -311,8 +343,8 @@ function Bills() {
           color: '#666', 
           marginBottom: '20px' 
         }}>
-          {searchQuery ? (
-            <>Showing {bills.length} search results for "{searchQuery}"</>
+          {activeSearch ? (
+            <>Showing {bills.length} search results for "{activeSearch}"</>
           ) : (
             <>
               Showing {bills.length} of {totalCount} bills
@@ -331,7 +363,7 @@ function Bills() {
 
       {/* Bills Grid */}
       <div 
-        key={`bills-grid-${searchQuery}-${bills.length}`}
+        key={`bills-grid-${activeSearch}-${bills.length}`}
         style={{ 
           display: 'grid', 
           gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', 
@@ -339,7 +371,7 @@ function Bills() {
           marginBottom: '30px'
         }}>
         <div style={{gridColumn: '1 / -1', background: '#f0f0f0', padding: '10px', fontSize: '12px', color: '#666'}}>
-          DEBUG: Rendering {bills.length} bills (searchQuery: "{searchQuery}")
+          DEBUG: Rendering {bills.length} bills (activeSearch: "{activeSearch}")
         </div>
         {bills.map((bill) => (
           <div
@@ -477,7 +509,7 @@ function Bills() {
       {/* No Results */}
       {!loading && bills.length === 0 && (
         <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-          {searchQuery ? (
+          {activeSearch ? (
             <>
               <h3>No bills found</h3>
               <p>No bills match your search criteria. Try adjusting your search terms or filters.</p>
@@ -492,7 +524,7 @@ function Bills() {
       )}
 
       {/* Load More Button */}
-      {hasMore && !searchQuery && bills.length > 0 && (
+      {hasMore && !activeSearch && bills.length > 0 && (
         <div style={{ textAlign: 'center', marginTop: '30px' }}>
           <button
             onClick={loadMoreBills}
