@@ -330,12 +330,17 @@ function Bills() {
       </div>
 
       {/* Bills Grid */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', 
-        gap: '20px',
-        marginBottom: '30px'
-      }}>
+      <div 
+        key={`bills-grid-${searchQuery}-${bills.length}`}
+        style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', 
+          gap: '20px',
+          marginBottom: '30px'
+        }}>
+        <div style={{gridColumn: '1 / -1', background: '#f0f0f0', padding: '10px', fontSize: '12px', color: '#666'}}>
+          DEBUG: Rendering {bills.length} bills (searchQuery: "{searchQuery}")
+        </div>
         {bills.map((bill) => (
           <div
             key={`${bill.session}-${bill.number}`}
