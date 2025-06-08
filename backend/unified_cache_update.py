@@ -388,15 +388,125 @@ class UnifiedCacheUpdater:
                 break
         
         if all_bills:
-            success = self.save_cache_data(all_bills, BILLS_CACHE_FILE, 'bills')
+            # Enrich bills with sponsor information
+            enriched_bills = self._enrich_bills_with_sponsors(all_bills)
+            
+            success = self.save_cache_data(enriched_bills, BILLS_CACHE_FILE, 'bills')
             if success:
                 self._build_bills_with_votes_index()
+            
+            sponsor_count = len([bill for bill in enriched_bills if bill.get('sponsor_politician_url')])
             self.log_operation("Bills Cache", "COMPLETED" if success else "FAILED", 
-                             f"{len(all_bills)} bills")
+                             f"{len(enriched_bills)} bills, {sponsor_count} with sponsors")
             return success
         
         self.log_operation("Bills Cache", "FAILED", "No data retrieved")
         return False
+    
+    def _enrich_bills_with_sponsors(self, bills: List[dict]) -> List[dict]:
+        """Enrich bills with sponsor information from LEGISinfo"""
+        try:
+            # Load politicians for sponsor mapping
+            try:
+                with open(POLITICIANS_CACHE_FILE, 'r') as f:
+                    politicians_data = json.load(f)
+                politicians = politicians_data.get('data', [])
+            except Exception as e:
+                self.logger.warning(f"Could not load politicians for sponsor mapping: {e}")
+                return bills
+            
+            # Create name to URL mapping
+            politician_name_to_url = {}
+            for mp in politicians:
+                if mp.get('name'):
+                    name = mp['name'].strip()
+                    politician_name_to_url[name] = mp['url']
+                    
+                    # Also store first-last format
+                    name_parts = name.split()
+                    if len(name_parts) >= 2:
+                        first_last = f"{name_parts[0]} {name_parts[-1]}"
+                        if first_last != name:
+                            politician_name_to_url[first_last] = mp['url']
+            
+            enriched_bills = []
+            enrichment_count = 0
+            
+            # Target recent sessions for enrichment
+            target_sessions = ['45-1', '44-1', '43-2', '43-1']
+            
+            for bill in bills:
+                enriched_bill = bill.copy()
+                
+                # Only enrich bills from target sessions to save time
+                if bill.get('session') not in target_sessions:
+                    enriched_bills.append(enriched_bill)
+                    continue
+                
+                # Fetch sponsor info from LEGISinfo
+                sponsor_info = self._fetch_legisinfo_sponsor(bill.get('session', ''), bill.get('number', ''))
+                
+                if sponsor_info:
+                    sponsor_name = sponsor_info.strip()
+                    
+                    # Try exact match first
+                    sponsor_url = politician_name_to_url.get(sponsor_name)
+                    
+                    # If no exact match, try partial matching
+                    if not sponsor_url:
+                        for name, url in politician_name_to_url.items():
+                            if (name.lower() in sponsor_name.lower() or 
+                                sponsor_name.lower() in name.lower()):
+                                sponsor_url = url
+                                break
+                    
+                    if sponsor_url:
+                        enriched_bill['sponsor_politician_url'] = sponsor_url
+                        enriched_bill['sponsor_name'] = sponsor_name
+                        enrichment_count += 1
+                        self.logger.info(f"Matched sponsor {sponsor_name} -> {sponsor_url} for {bill.get('session')}/{bill.get('number')}")
+                    else:
+                        self.logger.debug(f"Could not match sponsor '{sponsor_name}' for {bill.get('session')}/{bill.get('number')}")
+                
+                enriched_bills.append(enriched_bill)
+                
+                # Small delay to avoid overwhelming LEGISinfo API
+                time.sleep(0.1)
+            
+            self.logger.info(f"Enriched {enrichment_count}/{len(bills)} bills with sponsor information")
+            return enriched_bills
+            
+        except Exception as e:
+            self.logger.error(f"Error enriching bills with sponsors: {e}")
+            return bills
+    
+    def _fetch_legisinfo_sponsor(self, session: str, bill_number: str) -> Optional[str]:
+        """Fetch sponsor name from LEGISinfo API"""
+        try:
+            url = f"https://www.parl.ca/LegisInfo/en/bill/{session}/{bill_number.lower()}/json"
+            
+            # Use direct requests for LEGISinfo (different from Parliament API)
+            response = requests.get(url, timeout=10)
+            if not response.ok:
+                return None
+            
+            data = response.json()
+            if not data:
+                return None
+            
+            # Handle both list and dict responses
+            if isinstance(data, list) and len(data) > 0:
+                legis_info = data[0]
+            elif isinstance(data, dict):
+                legis_info = data
+            else:
+                return None
+            
+            return legis_info.get('SponsorPersonName')
+            
+        except Exception as e:
+            self.logger.debug(f"Error fetching LEGISinfo data for {session}/{bill_number}: {e}")
+            return None
     
     def _build_bills_with_votes_index(self):
         """Build index of bills that have associated votes"""
