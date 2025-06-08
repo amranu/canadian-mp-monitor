@@ -21,6 +21,8 @@ function MPDetail() {
   const [availableSessions, setAvailableSessions] = useState([]);
   const [sponsoredBills, setSponsoredBills] = useState([]);
   const [billsLoading, setBillsLoading] = useState(false);
+  const [partyLineStats, setPartyLineStats] = useState(null);
+  const [partyLineLoading, setPartyLineLoading] = useState(false);
 
   useEffect(() => {
     loadMP();
@@ -32,6 +34,13 @@ function MPDetail() {
       loadSponsoredBills();
     }
   }, [mp]);
+
+  // Load party-line statistics when component loads
+  useEffect(() => {
+    if (mpSlug && !partyLineStats && !partyLineLoading) {
+      loadPartyLineStats();
+    }
+  }, [mpSlug]);
 
   // Extract available sessions from votes and set current session as default
   useEffect(() => {
@@ -350,6 +359,21 @@ function MPDetail() {
     }
   };
 
+  const loadPartyLineStats = async () => {
+    try {
+      setPartyLineLoading(true);
+      const data = await parliamentApi.getMPPartyLineStats(mpSlug);
+      setPartyLineStats(data);
+      console.log('Party-line stats loaded:', data);
+    } catch (error) {
+      console.error('Error loading party-line stats:', error);
+      // If party-line stats are not available, don't show an error to user
+      setPartyLineStats(null);
+    } finally {
+      setPartyLineLoading(false);
+    }
+  };
+
   const renderStatistics = () => {
     const stats = calculateStatistics();
     
@@ -440,7 +464,101 @@ function MPDetail() {
               Last {stats.recentActivity.recentVotesCount} votes
             </div>
           </div>
+
+          {/* Party-Line Statistics Card */}
+          {partyLineStats && (
+            <div style={{
+              backgroundColor: '#f8f9fa',
+              padding: '20px',
+              borderRadius: '8px',
+              border: '1px solid #dee2e6',
+              textAlign: 'center'
+            }}>
+              <h3 style={{ margin: '0 0 10px 0', color: '#495057' }}>Party-Line Voting</h3>
+              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#495057' }}>
+                {partyLineStats.party_line_percentage}%
+              </div>
+              <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
+                Voted with {partyLineStats.mp_party} majority ({partyLineStats.party_line_votes}/{partyLineStats.total_eligible_votes} votes)
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Party-Line Detailed Stats */}
+        {partyLineStats && (
+          <div style={{ 
+            backgroundColor: 'white',
+            padding: '25px',
+            borderRadius: '8px',
+            border: '1px solid #dee2e6',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+            marginBottom: '30px'
+          }}>
+            <h3 style={{ margin: '0 0 20px 0', color: '#495057' }}>Party-Line Voting Analysis</h3>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
+              <div>
+                <h4 style={{ margin: '0 0 15px 0', color: '#495057' }}>Overall Statistics</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Party-Line Percentage:</span>
+                    <strong>{partyLineStats.party_line_percentage}%</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Votes Analyzed:</span>
+                    <strong>{partyLineStats.total_eligible_votes}</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Average Party Cohesion:</span>
+                    <strong>{partyLineStats.avg_party_cohesion}%</strong>
+                  </div>
+                </div>
+              </div>
+
+              {Object.keys(partyLineStats.party_loyalty_by_session).length > 0 && (
+                <div>
+                  <h4 style={{ margin: '0 0 15px 0', color: '#495057' }}>By Parliamentary Session</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
+                    {Object.entries(partyLineStats.party_loyalty_by_session)
+                      .sort(([a], [b]) => b.localeCompare(a))
+                      .map(([session, stats]) => (
+                        <div key={session} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Session {session}:</span>
+                          <strong>{stats.percentage}% ({stats.party_line}/{stats.total})</strong>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {partyLineStats.party_discipline_breaks && partyLineStats.party_discipline_breaks.length > 0 && (
+                <div>
+                  <h4 style={{ margin: '0 0 15px 0', color: '#495057' }}>Recent Party Discipline Breaks</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
+                    {partyLineStats.party_discipline_breaks.slice(0, 3).map((break_, index) => (
+                      <div key={index} style={{ 
+                        padding: '8px',
+                        backgroundColor: '#fff3cd',
+                        borderRadius: '4px',
+                        border: '1px solid #ffeaa7'
+                      }}>
+                        <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>
+                          {break_.date} - Voted {break_.mp_vote} (Party: {break_.party_position})
+                        </div>
+                        <div style={{ color: '#6c757d' }}>
+                          {break_.description?.length > 80 
+                            ? break_.description.substring(0, 80) + '...' 
+                            : break_.description}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Detailed Breakdowns */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '30px' }}>

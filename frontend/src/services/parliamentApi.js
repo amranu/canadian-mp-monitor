@@ -345,5 +345,119 @@ export const parliamentApi = {
     cache.set(cacheKey, data);
     
     return data;
+  },
+
+  // Party-line voting statistics endpoints
+  async getPartyLineSummary() {
+    const cacheKey = 'party-line-summary';
+    
+    // Check cache first
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+    
+    const url = `${API_BASE}/party-line/summary`;
+    console.log('Fetching party-line summary from:', url);
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('Party-line summary loaded:', data);
+    
+    // Cache the response
+    cache.set(cacheKey, data);
+    
+    return data;
+  },
+
+  async getMPPartyLineStats(mpSlug) {
+    const cacheKey = `party-line-mp-${mpSlug}`;
+    
+    // Check cache first
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+    
+    const url = `${API_BASE}/party-line/mp/${mpSlug}`;
+    console.log('Fetching MP party-line stats from:', url);
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('MP party-line stats loaded:', data);
+    
+    // Cache the response
+    cache.set(cacheKey, data);
+    
+    return data;
+  },
+
+  async getAllPartyLineStats(filters = {}) {
+    const cacheKey = `party-line-all-${JSON.stringify(filters)}`;
+    
+    // Check cache first
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+    
+    // Build query parameters
+    const params = new URLSearchParams();
+    
+    if (filters.party) {
+      params.append('party', filters.party);
+    }
+    
+    if (filters.session) {
+      params.append('session', filters.session);
+    }
+    
+    if (filters.limit) {
+      params.append('limit', filters.limit.toString());
+    }
+    
+    if (filters.offset) {
+      params.append('offset', filters.offset.toString());
+    }
+    
+    const url = `${API_BASE}/party-line/all?${params.toString()}`;
+    console.log('Fetching all party-line stats from:', url);
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('All party-line stats loaded:', data);
+    
+    // Cache the response
+    cache.set(cacheKey, data);
+    
+    return data;
+  },
+
+  async refreshPartyLineCache() {
+    const url = `${API_BASE}/party-line/refresh`;
+    console.log('Triggering party-line cache refresh at:', url);
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response.json();
   }
 };

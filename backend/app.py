@@ -31,6 +31,7 @@ VOTE_CACHE_INDEX_FILE = os.path.join(CACHE_DIR, 'vote_cache_index.json')
 BILLS_CACHE_FILE = os.path.join(CACHE_DIR, 'bills.json')
 BILLS_WITH_VOTES_INDEX_FILE = os.path.join(CACHE_DIR, 'bills_with_votes_index.json')
 LEGISINFO_CACHE_DIR = os.path.join(CACHE_DIR, 'legisinfo')
+PARTY_LINE_CACHE_FILE = os.path.join(CACHE_DIR, 'party_line_stats.json')
 
 # Ensure cache directories exist
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -1752,6 +1753,155 @@ def enrich_recent_session_bills():
             'success': False,
             'error': str(e)
         }), 500
+
+def load_party_line_cache():
+    """Load party-line statistics from cache file"""
+    try:
+        if os.path.exists(PARTY_LINE_CACHE_FILE):
+            with open(PARTY_LINE_CACHE_FILE, 'r') as f:
+                data = json.load(f)
+            
+            # Check if cache is still valid (2 hours)
+            from datetime import datetime
+            cache_expires = datetime.fromisoformat(data['summary']['cache_expires'])
+            if datetime.now() < cache_expires:
+                return data
+            else:
+                print(f"[{datetime.now()}] Party-line cache expired")
+        
+    except Exception as e:
+        print(f"Error loading party-line cache: {e}")
+    
+    return None
+
+@app.route('/api/party-line/summary')
+def get_party_line_summary():
+    """Get party-line voting summary statistics"""
+    try:
+        party_line_data = load_party_line_cache()
+        if not party_line_data:
+            return jsonify({
+                'error': 'Party-line statistics not available',
+                'message': 'Party-line statistics have not been calculated yet or cache has expired'
+            }), 404
+        
+        return jsonify(party_line_data['summary'])
+        
+    except Exception as e:
+        print(f"[{datetime.now()}] Error serving party-line summary: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/party-line/mp/<mp_slug>')
+def get_mp_party_line_stats(mp_slug):
+    """Get party-line voting statistics for a specific MP"""
+    try:
+        party_line_data = load_party_line_cache()
+        if not party_line_data:
+            return jsonify({
+                'error': 'Party-line statistics not available',
+                'message': 'Party-line statistics have not been calculated yet or cache has expired'
+            }), 404
+        
+        mp_stats = party_line_data['mp_stats'].get(mp_slug)
+        if not mp_stats:
+            return jsonify({
+                'error': 'MP not found',
+                'message': f'Party-line statistics not available for MP: {mp_slug}'
+            }), 404
+        
+        return jsonify(mp_stats)
+        
+    except Exception as e:
+        print(f"[{datetime.now()}] Error serving MP party-line stats for {mp_slug}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/party-line/all')
+def get_all_party_line_stats():
+    """Get party-line voting statistics for all MPs"""
+    try:
+        # Parse query parameters
+        party_filter = request.args.get('party')
+        session_filter = request.args.get('session')
+        limit = int(request.args.get('limit', 100))
+        offset = int(request.args.get('offset', 0))
+        
+        party_line_data = load_party_line_cache()
+        if not party_line_data:
+            return jsonify({
+                'error': 'Party-line statistics not available',
+                'message': 'Party-line statistics have not been calculated yet or cache has expired'
+            }), 404
+        
+        mp_stats = party_line_data['mp_stats']
+        
+        # Apply filters
+        filtered_stats = []
+        for mp_slug, stats in mp_stats.items():
+            # Party filter
+            if party_filter and stats.get('mp_party', '').lower() != party_filter.lower():
+                continue
+            
+            # Session filter (check if MP has stats for this session)
+            if session_filter and session_filter not in stats.get('party_loyalty_by_session', {}):
+                continue
+            
+            filtered_stats.append({
+                'mp_slug': mp_slug,
+                **stats
+            })
+        
+        # Sort by party-line percentage (descending)
+        filtered_stats.sort(key=lambda x: x.get('party_line_percentage', 0), reverse=True)
+        
+        # Apply pagination
+        total_count = len(filtered_stats)
+        paginated_stats = filtered_stats[offset:offset + limit]
+        
+        return jsonify({
+            'objects': paginated_stats,
+            'meta': {
+                'total_count': total_count,
+                'limit': limit,
+                'offset': offset,
+                'has_next': offset + limit < total_count,
+                'has_previous': offset > 0
+            },
+            'summary': party_line_data['summary']
+        })
+        
+    except Exception as e:
+        print(f"[{datetime.now()}] Error serving all party-line stats: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/party-line/refresh')
+def refresh_party_line_cache():
+    """Trigger refresh of party-line statistics cache"""
+    try:
+        # Import and run the party-line calculation script
+        import subprocess
+        import sys
+        
+        result = subprocess.run([
+            sys.executable, 
+            os.path.join(os.path.dirname(__file__), 'cache_party_line_stats.py')
+        ], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            return jsonify({
+                'success': True,
+                'message': 'Party-line statistics cache refresh triggered',
+                'output': result.stdout
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to refresh party-line cache',
+                'output': result.stderr
+            }), 500
+        
+    except Exception as e:
+        print(f"[{datetime.now()}] Error refreshing party-line cache: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
