@@ -18,10 +18,19 @@ function MPDetail() {
   const [activeTab, setActiveTab] = useState('votes');
   const [selectedSession, setSelectedSession] = useState('current');
   const [availableSessions, setAvailableSessions] = useState([]);
+  const [sponsoredBills, setSponsoredBills] = useState([]);
+  const [billsLoading, setBillsLoading] = useState(false);
 
   useEffect(() => {
     loadMP();
   }, [mpSlug]);
+
+  // Load sponsored bills when bills tab is selected
+  useEffect(() => {
+    if (activeTab === 'bills' && mp && sponsoredBills.length === 0 && !billsLoading) {
+      loadSponsoredBills();
+    }
+  }, [activeTab, mp]);
 
   // Extract available sessions from votes and set current session as default
   useEffect(() => {
@@ -314,6 +323,20 @@ function MPDetail() {
           setVotesLoading(false);
         }
       }
+    }
+  };
+
+  const loadSponsoredBills = async () => {
+    try {
+      setBillsLoading(true);
+      const data = await parliamentApi.getMPSponsoredBills(mp.url);
+      setSponsoredBills(data.objects || []);
+      console.log(`Loaded ${data.objects?.length || 0} sponsored bills for ${mp.name}`);
+    } catch (error) {
+      console.error('Error loading sponsored bills:', error);
+      setSponsoredBills([]);
+    } finally {
+      setBillsLoading(false);
     }
   };
 
@@ -665,6 +688,33 @@ function MPDetail() {
           >
             📈 Statistics
           </button>
+          <button
+            onClick={() => setActiveTab('bills')}
+            style={{
+              padding: '12px 24px',
+              border: 'none',
+              backgroundColor: 'transparent',
+              color: activeTab === 'bills' ? '#333' : '#666',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: activeTab === 'bills' ? '600' : 'normal',
+              borderBottom: activeTab === 'bills' ? '2px solid #333' : '2px solid transparent',
+              marginBottom: '-2px',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              if (activeTab !== 'bills') {
+                e.target.style.color = '#333';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeTab !== 'bills') {
+                e.target.style.color = '#666';
+              }
+            }}
+          >
+            📋 Sponsored Bills
+          </button>
         </div>
       </div>
 
@@ -1010,6 +1060,126 @@ function MPDetail() {
             )}
           </div>
           {renderStatistics()}
+        </div>
+      )}
+
+      {/* Bills Tab */}
+      {activeTab === 'bills' && (
+        <div>
+          <div style={{ marginBottom: '30px' }}>
+            <h2 style={{ margin: '0 0 20px 0' }}>
+              Sponsored Bills
+              {!billsLoading && (
+                <span style={{ fontSize: '16px', fontWeight: 'normal', color: '#666', marginLeft: '10px' }}>
+                  ({sponsoredBills.length})
+                </span>
+              )}
+            </h2>
+
+            {billsLoading && (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                Loading sponsored bills...
+              </div>
+            )}
+
+            {!billsLoading && sponsoredBills.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                <h4>No sponsored bills found</h4>
+                <p>{mp.name} has not sponsored any bills in the current parliamentary session.</p>
+              </div>
+            )}
+
+            {!billsLoading && sponsoredBills.length > 0 && (
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))', 
+                gap: '20px' 
+              }}>
+                {sponsoredBills.map((bill) => (
+                  <div
+                    key={`${bill.session}-${bill.number}`}
+                    onClick={() => navigate(`/bill/${bill.session}/${bill.number}`)}
+                    style={{
+                      border: '1px solid #ddd',
+                      borderRadius: '8px',
+                      padding: '20px',
+                      backgroundColor: 'white',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                      cursor: 'pointer',
+                      transition: 'box-shadow 0.2s, transform 0.1s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                      e.target.style.transform = 'translateY(-1px)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+                      e.target.style.transform = 'translateY(0)';
+                    }}
+                  >
+                    <div style={{ marginBottom: '15px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                        <div style={{
+                          padding: '4px 8px',
+                          backgroundColor: bill.number.startsWith('C-') ? '#007bff' : '#6f42c1',
+                          color: 'white',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          fontWeight: 'bold'
+                        }}>
+                          {bill.number.startsWith('C-') ? 'House Bill' : 'Senate Bill'}
+                        </div>
+                        <div style={{
+                          fontSize: '14px',
+                          color: '#666',
+                          fontWeight: 'bold'
+                        }}>
+                          {bill.session} - {bill.number}
+                        </div>
+                      </div>
+
+                      <h3 style={{
+                        margin: '0 0 10px 0',
+                        fontSize: '18px',
+                        lineHeight: '1.4',
+                        color: '#333',
+                        fontWeight: '600'
+                      }}>
+                        {bill.name?.en || 'Bill name not available'}
+                      </h3>
+
+                      {bill.name?.fr && bill.name.fr !== bill.name?.en && (
+                        <p style={{
+                          margin: '0 0 10px 0',
+                          fontSize: '14px',
+                          color: '#666',
+                          fontStyle: 'italic',
+                          lineHeight: '1.3'
+                        }}>
+                          {bill.name.fr}
+                        </p>
+                      )}
+                    </div>
+
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: '14px',
+                      color: '#666'
+                    }}>
+                      <span>
+                        <strong>Introduced:</strong> {new Date(bill.introduced).toLocaleDateString('en-CA')}
+                      </span>
+                      <span>
+                        <strong>Session:</strong> {bill.session}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

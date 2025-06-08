@@ -316,5 +316,34 @@ export const parliamentApi = {
     cache.set(cacheKey, data);
     
     return data;
+  },
+
+  async getMPSponsoredBills(mpUrl) {
+    // Extract politician slug from the URL
+    const slug = mpUrl.replace('/politicians/', '').replace('/', '');
+    const cacheKey = `mp-bills-${slug}`;
+    
+    // Check cache first
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+    
+    const url = `${API_BASE}/politicians/${slug}/bills`;
+    console.log('Fetching sponsored bills from:', url);
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('MP sponsored bills loaded:', data);
+    
+    // Cache the response
+    cache.set(cacheKey, data);
+    
+    return data;
   }
 };

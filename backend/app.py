@@ -1527,6 +1527,41 @@ def get_bill_votes(bill_path):
         print(f"[{datetime.now()}] Error getting votes for bill {bill_path}: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/politicians/<path:politician_path>/bills')
+def get_politician_bills(politician_path):
+    """Get bills sponsored by a specific MP"""
+    try:
+        # Check if bills cache is valid
+        if not is_cache_valid('bills'):
+            success = update_bills_cache()
+            if not success and cache['bills']['data'] is None:
+                return jsonify({'error': 'Failed to load bills data'}), 500
+        
+        # Build MP URL for comparison
+        mp_url = f'/politicians/{politician_path}/'
+        
+        # Filter bills by sponsor
+        sponsored_bills = []
+        for bill in cache['bills']['data']:
+            if bill.get('sponsor_politician_url') == mp_url:
+                sponsored_bills.append(bill)
+        
+        # Sort by introduction date (newest first)
+        sponsored_bills.sort(key=lambda x: x.get('introduced') or '', reverse=True)
+        
+        print(f"[{datetime.now()}] Found {len(sponsored_bills)} bills sponsored by {politician_path}")
+        
+        return jsonify({
+            'objects': sponsored_bills,
+            'total_count': len(sponsored_bills),
+            'politician_path': politician_path,
+            'sponsor_url': mp_url
+        })
+        
+    except Exception as e:
+        print(f"[{datetime.now()}] Error getting sponsored bills for {politician_path}: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/reload-historical-mps', methods=['POST'])
 def reload_historical_mps():
     """Reload historical MP data from cache file"""
