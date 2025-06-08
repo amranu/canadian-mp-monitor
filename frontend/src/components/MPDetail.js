@@ -1207,6 +1207,46 @@ function MPDetail() {
                         <strong>Session:</strong> {bill.session}
                       </span>
                     </div>
+
+                    {/* LEGISinfo Link */}
+                    <div style={{
+                      marginTop: '12px',
+                      paddingTop: '12px',
+                      borderTop: '1px solid #e9ecef'
+                    }}>
+                      <a
+                        href={`https://www.parl.ca/legisinfo/en/bill/${bill.session}/${bill.number.toLowerCase()}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          color: '#007bff',
+                          textDecoration: 'none',
+                          fontSize: '12px',
+                          fontWeight: '500',
+                          padding: '4px 8px',
+                          backgroundColor: '#f8f9fa',
+                          borderRadius: '4px',
+                          border: '1px solid #dee2e6',
+                          transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.backgroundColor = '#e3f2fd';
+                          e.target.style.borderColor = '#90caf9';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.backgroundColor = '#f8f9fa';
+                          e.target.style.borderColor = '#dee2e6';
+                        }}
+                      >
+                        <span>🏛️</span>
+                        Official Bill Details
+                        <span style={{ fontSize: '10px' }}>↗</span>
+                      </a>
+                    </div>
                   </div>
                 ))}
               </div>
