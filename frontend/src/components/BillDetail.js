@@ -120,7 +120,7 @@ function BillDetail() {
   return (
     <div style={{ padding: '20px' }}>
       <button 
-        onClick={() => navigate('/bills')}
+        onClick={() => navigate(-1)}
         style={{ 
           marginBottom: '20px',
           padding: '10px 20px', 
@@ -131,7 +131,7 @@ function BillDetail() {
           cursor: 'pointer'
         }}
       >
-        ← Back to Bills
+        ← Back
       </button>
 
       {/* Bill Header */}
