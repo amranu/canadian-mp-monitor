@@ -437,7 +437,7 @@ class UnifiedCacheUpdater:
         except Exception as e:
             self.logger.error(f"Error building bills with votes index: {e}")
     
-    def update_mp_voting_records(self, max_mps: int = 100) -> bool:
+    def update_mp_voting_records(self, max_mps: int = None) -> bool:
         """Build MP voting records from cached vote data (memory efficient)"""
         self.log_operation("MP Voting Records", "STARTED")
         
@@ -457,7 +457,8 @@ class UnifiedCacheUpdater:
             successful_updates = 0
             
             # Process MPs in batches to manage memory
-            for i, mp in enumerate(politicians[:max_mps]):
+            mps_to_process = politicians if max_mps is None else politicians[:max_mps]
+            for i, mp in enumerate(mps_to_process):
                 mp_slug = mp['url'].replace('/politicians/', '').replace('/', '')
                 
                 if self._is_mp_votes_cache_fresh(mp_slug):
@@ -479,7 +480,7 @@ class UnifiedCacheUpdater:
                         with open(mp_cache_file, 'w') as f:
                             json.dump(cache_data, f, indent=2)
                         successful_updates += 1
-                        self.logger.info(f"Cached {len(votes)} votes for {mp.get('name', mp_slug)} ({i+1}/{max_mps})")
+                        self.logger.info(f"Cached {len(votes)} votes for {mp.get('name', mp_slug)} ({i+1}/{len(mps_to_process)})")
                     except Exception as e:
                         self.logger.error(f"Error saving MP votes for {mp_slug}: {e}")
                 
@@ -490,7 +491,7 @@ class UnifiedCacheUpdater:
             # Clean up temporary directory
             shutil.rmtree(temp_dir, ignore_errors=True)
         
-        self.log_operation("MP Voting Records", "COMPLETED", f"{successful_updates} MPs updated")
+        self.log_operation("MP Voting Records", "COMPLETED", f"{successful_updates}/{len(mps_to_process)} MPs updated")
         return successful_updates > 0
     
     def _is_mp_votes_cache_fresh(self, mp_slug: str) -> bool:
@@ -636,7 +637,7 @@ class UnifiedCacheUpdater:
         except Exception as e:
             self.logger.error(f"Error saving statistics: {e}")
     
-    def run_auto_mode(self):
+    def run_auto_mode(self, max_mps=None):
         """Run automatic cache updates based on expiration"""
         self.logger.info("Starting unified cache update (AUTO mode)")
         
@@ -645,27 +646,29 @@ class UnifiedCacheUpdater:
         self.update_votes_cache()
         self.update_vote_details_incremental()
         self.update_bills_cache()
-        self.update_mp_voting_records(max_mps=100)
+        self.update_mp_voting_records(max_mps=max_mps)
         self.update_historical_mps()
         
         self.save_statistics()
     
-    def run_incremental_mode(self):
+    def run_incremental_mode(self, max_mps=None):
         """Run incremental updates only"""
         self.logger.info("Starting unified cache update (INCREMENTAL mode)")
         
         self.update_vote_details_incremental()
-        self.update_mp_voting_records(max_mps=50)
+        # In incremental mode, only update fresh MP records if cache is expired
+        # This will still process all MPs, but only those with expired cache
+        self.update_mp_voting_records(max_mps=max_mps)
         
         self.save_statistics()
     
-    def run_full_mode(self):
+    def run_full_mode(self, max_mps=None):
         """Run full cache rebuild"""
         self.logger.info("Starting unified cache update (FULL mode)")
         
         # Force all updates
         self.force_full = True
-        self.run_auto_mode()
+        self.run_auto_mode(max_mps=max_mps)
 
 def main():
     parser = argparse.ArgumentParser(description='Unified Cache Update Script')
@@ -675,8 +678,8 @@ def main():
                        help='Force update even if cache is fresh')
     parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], default='INFO',
                        help='Logging level')
-    parser.add_argument('--max-mps', type=int, default=100,
-                       help='Maximum number of MPs to cache voting records for')
+    parser.add_argument('--max-mps', type=int, default=None,
+                       help='Maximum number of MPs to cache voting records for (default: all current MPs)')
     
     args = parser.parse_args()
     
@@ -688,11 +691,11 @@ def main():
     
     try:
         if args.mode == 'auto':
-            updater.run_auto_mode()
+            updater.run_auto_mode(max_mps=args.max_mps)
         elif args.mode == 'incremental':
-            updater.run_incremental_mode()
+            updater.run_incremental_mode(max_mps=args.max_mps)
         elif args.mode == 'full':
-            updater.run_full_mode()
+            updater.run_full_mode(max_mps=args.max_mps)
             
     except KeyboardInterrupt:
         updater.logger.info("Cache update interrupted by user")
