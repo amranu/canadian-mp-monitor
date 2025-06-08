@@ -567,6 +567,81 @@ def enrich_bill_with_legisinfo(bill):
     
     return bill
 
+def enrich_bills_with_sponsor_info(bills):
+    """Enrich bills with sponsor information from LEGISinfo"""
+    try:
+        if not cache['politicians']['data']:
+            print(f"[{datetime.now()}] No politicians cache available for sponsor mapping")
+            return bills
+            
+        # Create a mapping of politician names to URLs for faster lookup
+        politician_name_to_url = {}
+        for mp in cache['politicians']['data']:
+            if mp.get('name'):
+                # Store multiple name variations for better matching
+                name = mp['name'].strip()
+                politician_name_to_url[name] = mp['url']
+                
+                # Also store first-last format if different
+                name_parts = name.split()
+                if len(name_parts) >= 2:
+                    first_last = f"{name_parts[0]} {name_parts[-1]}"
+                    if first_last != name:
+                        politician_name_to_url[first_last] = mp['url']
+        
+        enriched_bills = []
+        enrichment_count = 0
+        
+        for bill in bills:
+            enriched_bill = bill.copy()
+            
+            # Try to get sponsor info from LEGISinfo
+            legis_data = fetch_legisinfo_data(bill.get('session', ''), bill.get('number', ''))
+            if legis_data:
+                # Handle both list and dict responses
+                if isinstance(legis_data, list) and len(legis_data) > 0:
+                    legis_info = legis_data[0]
+                elif isinstance(legis_data, dict):
+                    legis_info = legis_data
+                else:
+                    legis_info = None
+                
+                if legis_info:
+                    sponsor_name = legis_info.get('SponsorPersonName')
+                    if sponsor_name:
+                        # Clean the sponsor name and try to match
+                        sponsor_name = sponsor_name.strip()
+                        
+                        # Try exact match first
+                        sponsor_url = politician_name_to_url.get(sponsor_name)
+                        
+                        # If no exact match, try partial matching
+                        if not sponsor_url:
+                            for name, url in politician_name_to_url.items():
+                                if name.lower() in sponsor_name.lower() or sponsor_name.lower() in name.lower():
+                                    sponsor_url = url
+                                    break
+                        
+                        if sponsor_url:
+                            enriched_bill['sponsor_politician_url'] = sponsor_url
+                            enriched_bill['sponsor_name'] = sponsor_name
+                            enrichment_count += 1
+                            print(f"[{datetime.now()}] Matched sponsor {sponsor_name} -> {sponsor_url} for bill {bill.get('session')}/{bill.get('number')}")
+                        else:
+                            print(f"[{datetime.now()}] Could not match sponsor '{sponsor_name}' for bill {bill.get('session')}/{bill.get('number')}")
+            
+            enriched_bills.append(enriched_bill)
+            
+            # Small delay to avoid overwhelming LEGISinfo API
+            time.sleep(0.1)
+        
+        print(f"[{datetime.now()}] Enriched {enrichment_count} of {len(bills)} bills with sponsor information")
+        return enriched_bills
+        
+    except Exception as e:
+        print(f"[{datetime.now()}] Error enriching bills with sponsor info: {e}")
+        return bills
+
 def update_bills_cache():
     """Update the bills cache"""
     try:
@@ -578,13 +653,17 @@ def update_bills_cache():
         
         all_bills = load_all_bills()
         
-        cache['bills']['data'] = all_bills
+        # Enrich bills with sponsor information
+        print(f"[{datetime.now()}] Enriching bills with sponsor information...")
+        enriched_bills = enrich_bills_with_sponsor_info(all_bills)
+        
+        cache['bills']['data'] = enriched_bills
         cache['bills']['expires'] = time.time() + CACHE_DURATION
         cache['bills']['loading'] = False
         
         # Save to file
         save_cache_to_file({
-            'data': all_bills,
+            'data': enriched_bills,
             'expires': cache['bills']['expires'],
             'updated': datetime.now().isoformat()
         }, BILLS_CACHE_FILE)
@@ -592,7 +671,7 @@ def update_bills_cache():
         # Build the bills with votes index
         build_bills_with_votes_index()
         
-        print(f"[{datetime.now()}] Cached {len(all_bills)} bills")
+        print(f"[{datetime.now()}] Cached {len(enriched_bills)} bills")
         return True
         
     except Exception as e:
@@ -1572,6 +1651,35 @@ def reload_historical_mps():
             'message': f'Reloaded {len(cache["historical_mps"]["data"])} historical MPs',
             'count': len(cache['historical_mps']['data'])
         })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/refresh-bills-cache', methods=['POST'])
+def refresh_bills_cache():
+    """Force refresh of bills cache with sponsor information"""
+    try:
+        # Clear existing cache to force reload
+        cache['bills']['data'] = None
+        cache['bills']['expires'] = 0
+        
+        success = update_bills_cache()
+        
+        if success:
+            sponsor_count = len([bill for bill in cache['bills']['data'] if bill.get('sponsor_politician_url')])
+            return jsonify({
+                'success': True,
+                'message': f'Successfully refreshed {len(cache["bills"]["data"])} bills with {sponsor_count} sponsor matches',
+                'total_bills': len(cache['bills']['data']),
+                'bills_with_sponsors': sponsor_count
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to update bills cache'
+            }), 500
     except Exception as e:
         return jsonify({
             'success': False,
