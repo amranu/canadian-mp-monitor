@@ -451,7 +451,7 @@ def save_incremental_results(mp_slug, mp_stats, existing_data=None):
     save_party_line_cache(existing_data)
     return existing_data
 
-def calculate_all_party_line_stats(memory_limit_mb=MAX_MEMORY_MB, max_votes_per_mp=300):
+def calculate_all_party_line_stats(memory_limit_mb=MAX_MEMORY_MB, max_votes_per_mp=300, force_recalculate=False):
     """Calculate party-line statistics for all MPs with memory-efficient processing"""
     print(f"[{datetime.now()}] Starting memory-efficient party-line statistics calculation...")
     
@@ -464,13 +464,17 @@ def calculate_all_party_line_stats(memory_limit_mb=MAX_MEMORY_MB, max_votes_per_
         print("No MP data available")
         return None
     
-    # Load existing cache to resume if needed
-    existing_data = load_existing_party_line_cache()
+    # Load existing cache to resume if needed (unless force flag is set)
+    existing_data = None
     already_processed = set()
     
-    if existing_data and 'mp_stats' in existing_data:
-        already_processed = set(existing_data['mp_stats'].keys())
-        print(f"Found existing cache with {len(already_processed)} MPs already processed")
+    if not force_recalculate:
+        existing_data = load_existing_party_line_cache()
+        if existing_data and 'mp_stats' in existing_data:
+            already_processed = set(existing_data['mp_stats'].keys())
+            print(f"Found existing cache with {len(already_processed)} MPs already processed")
+    else:
+        print("Force recalculation enabled - starting fresh")
     
     # Process MPs one at a time to minimize memory usage
     processed = len(already_processed)
@@ -635,7 +639,7 @@ def main():
     parser = argparse.ArgumentParser(description='Calculate party-line voting statistics')
     parser.add_argument('--force', action='store_true', help='Force recalculation even if cache exists')
     parser.add_argument('--memory-limit', type=int, default=MAX_MEMORY_MB, help='Memory limit in MB')
-    parser.add_argument('--max-votes', type=int, default=300, help='Maximum votes to analyze per MP')
+    parser.add_argument('--max-votes', type=int, default=1000, help='Maximum votes to analyze per MP')
     parser.add_argument('--batch-size', type=int, default=10, help='Number of MPs to process before reporting')
     
     args = parser.parse_args()
@@ -651,7 +655,7 @@ def main():
             return
     
     # Calculate new statistics
-    stats_data = calculate_all_party_line_stats(args.memory_limit, args.max_votes)
+    stats_data = calculate_all_party_line_stats(args.memory_limit, args.max_votes, args.force)
     if stats_data:
         if save_party_line_cache(stats_data):
             print(f"[{datetime.now()}] Party-line statistics cache updated successfully")
