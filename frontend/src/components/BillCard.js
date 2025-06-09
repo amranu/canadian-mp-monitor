@@ -61,7 +61,7 @@ function BillCard({ bill, onClick }) {
         width: '100%',
         height: '240px', // Fixed height for all cards
         maxWidth: '400px',
-        margin: '0 auto',
+        margin: '0',
         boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
