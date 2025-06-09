@@ -904,11 +904,65 @@ class UnifiedCacheUpdater:
         self.update_party_line_stats()
         
         self.save_statistics()
+    
+    def run_politicians_mode(self):
+        """Run only politicians cache update"""
+        self.logger.info("Starting unified cache update (POLITICIANS mode)")
+        
+        self.force_full = True
+        self.update_politicians_cache()
+        
+        self.save_statistics()
+    
+    def run_votes_mode(self):
+        """Run only votes cache update"""
+        self.logger.info("Starting unified cache update (VOTES mode)")
+        
+        self.force_full = True
+        self.update_votes_cache()
+        
+        self.save_statistics()
+    
+    def run_vote_details_mode(self):
+        """Run only vote details cache update"""
+        self.logger.info("Starting unified cache update (VOTE-DETAILS mode)")
+        
+        self.force_full = True
+        self.update_vote_details_incremental()
+        
+        self.save_statistics()
+    
+    def run_bills_mode(self):
+        """Run only bills cache update"""
+        self.logger.info("Starting unified cache update (BILLS mode)")
+        
+        self.force_full = True
+        self.update_bills_cache()
+        
+        self.save_statistics()
+    
+    def run_mp_votes_mode(self, max_mps=None):
+        """Run only MP voting records cache update"""
+        self.logger.info("Starting unified cache update (MP-VOTES mode)")
+        
+        self.force_full = True
+        self.update_mp_voting_records(max_mps=max_mps)
+        
+        self.save_statistics()
+    
+    def run_historical_mps_mode(self):
+        """Run only historical MPs cache update"""
+        self.logger.info("Starting unified cache update (HISTORICAL-MPS mode)")
+        
+        self.force_full = True
+        self.update_historical_mps()
+        
+        self.save_statistics()
 
 def main():
     parser = argparse.ArgumentParser(description='Unified Cache Update Script')
-    parser.add_argument('--mode', choices=['auto', 'incremental', 'full', 'party-line'], default='auto',
-                       help='Update mode: auto (smart), incremental (new data only), full (rebuild all), party-line (only party line stats)')
+    parser.add_argument('--mode', choices=['auto', 'incremental', 'full', 'party-line', 'politicians', 'votes', 'vote-details', 'bills', 'mp-votes', 'historical-mps'], default='auto',
+                       help='Update mode: auto (smart), incremental (new data only), full (rebuild all), party-line (only party line stats), politicians (only politicians cache), votes (only votes cache), vote-details (only vote details cache), bills (only bills cache), mp-votes (only MP voting records), historical-mps (only historical MPs cache)')
     parser.add_argument('--force', action='store_true',
                        help='Force update even if cache is fresh')
     parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], default='INFO',
@@ -933,6 +987,18 @@ def main():
             updater.run_full_mode(max_mps=args.max_mps)
         elif args.mode == 'party-line':
             updater.run_party_line_mode()
+        elif args.mode == 'politicians':
+            updater.run_politicians_mode()
+        elif args.mode == 'votes':
+            updater.run_votes_mode()
+        elif args.mode == 'vote-details':
+            updater.run_vote_details_mode()
+        elif args.mode == 'bills':
+            updater.run_bills_mode()
+        elif args.mode == 'mp-votes':
+            updater.run_mp_votes_mode(max_mps=args.max_mps)
+        elif args.mode == 'historical-mps':
+            updater.run_historical_mps_mode()
             
     except KeyboardInterrupt:
         updater.logger.info("Cache update interrupted by user")
