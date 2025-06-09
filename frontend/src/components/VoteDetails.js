@@ -294,9 +294,18 @@ function VoteDetails() {
       }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '15px' }}>
           <div style={{ flex: 1 }}>
+            <h1 style={{ margin: '0 0 10px 0', fontSize: '24px', lineHeight: '1.3' }}>
+              {vote.description?.en}
+            </h1>
+            <div style={{ fontSize: '14px', color: '#666', display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+              <span><strong>📅</strong> {vote.date}</span>
+              <span><strong>Session:</strong> {vote.session}</span>
+              <span><strong>Vote #{vote.number}</strong></span>
+            </div>
+            
             {vote.bill_url && (
               <div style={{ 
-                marginBottom: '15px',
+                marginTop: '15px',
                 padding: '12px 16px',
                 backgroundColor: '#e7f3ff',
                 borderRadius: '8px',
@@ -424,14 +433,6 @@ function VoteDetails() {
                 })()}
               </div>
             )}
-            <h1 style={{ margin: '0 0 10px 0', fontSize: '24px', lineHeight: '1.3' }}>
-              {vote.description?.en}
-            </h1>
-            <div style={{ fontSize: '14px', color: '#666', display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-              <span><strong>📅</strong> {vote.date}</span>
-              <span><strong>Session:</strong> {vote.session}</span>
-              <span><strong>Vote #{vote.number}</strong></span>
-            </div>
           </div>
           
           <div style={{ 
@@ -449,24 +450,6 @@ function VoteDetails() {
       </div>
 
 
-      {/* Historical MP Data Notice */}
-      {voteDetails.mp_sources && voteDetails.mp_sources.historical_mps && voteDetails.mp_sources.historical_mps > 0 && (
-        <div style={{ 
-          marginBottom: '20px',
-          padding: '12px 16px',
-          backgroundColor: '#fff3cd',
-          borderRadius: '6px',
-          border: '1px solid #ffeaa7'
-        }}>
-          <div style={{ fontSize: '14px', color: '#856404', fontWeight: '600', marginBottom: '4px' }}>
-            📚 Historical Parliament Data
-          </div>
-          <div style={{ fontSize: '14px', color: '#856404' }}>
-            This vote includes {voteDetails.mp_sources.historical_mps} MPs from a previous parliamentary session who are no longer in office.
-            {voteDetails.mp_sources.current_mps && voteDetails.mp_sources.current_mps > 0 && ` Also showing ${voteDetails.mp_sources.current_mps} current MPs.`}
-          </div>
-        </div>
-      )}
 
       {/* Party Statistics */}
       {sortedParties && sortedParties.length > 0 ? (
@@ -573,6 +556,25 @@ function VoteDetails() {
               ))}
           </div>
         </div>
+        
+        {/* Historical MP Data Notice */}
+        {voteDetails.mp_sources && voteDetails.mp_sources.historical_mps && voteDetails.mp_sources.historical_mps > 0 && (
+          <div style={{ 
+            marginBottom: '20px',
+            padding: '12px 16px',
+            backgroundColor: '#fff3cd',
+            borderRadius: '6px',
+            border: '1px solid #ffeaa7'
+          }}>
+            <div style={{ fontSize: '14px', color: '#856404', fontWeight: '600', marginBottom: '4px' }}>
+              📚 Historical Parliament Data
+            </div>
+            <div style={{ fontSize: '14px', color: '#856404' }}>
+              This vote includes {voteDetails.mp_sources.historical_mps} MPs from a previous parliamentary session who are no longer in office.
+              {voteDetails.mp_sources.current_mps && voteDetails.mp_sources.current_mps > 0 && ` Also showing ${voteDetails.mp_sources.current_mps} current MPs.`}
+            </div>
+          </div>
+        )}
         
         {/* Color Legend */}
         <div style={{ marginBottom: '20px', fontSize: '12px', color: '#666' }}>
