@@ -128,22 +128,24 @@ function MPDetail() {
       return null;
     }
 
-    // Basic statistics
-    const totalVotes = votesWithBallot.length;
+    // Basic statistics - exclude Paired votes from total (matches party-line calculation)
+    const substantiveVotes = votesWithBallot.filter(v => v.mp_ballot === 'Yes' || v.mp_ballot === 'No');
+    const totalVotes = substantiveVotes.length;
     const yesVotes = votesWithBallot.filter(v => v.mp_ballot === 'Yes').length;
     const noVotes = votesWithBallot.filter(v => v.mp_ballot === 'No').length;
     const abstainedVotes = votesWithBallot.filter(v => v.mp_ballot === 'Paired').length;
     
-    // Participation rate
-    const participationRate = ((yesVotes + noVotes) / totalVotes) * 100;
+    // Participation rate (substantive votes vs all recorded positions)
+    const allRecordedVotes = votesWithBallot.length;
+    const participationRate = (totalVotes / allRecordedVotes) * 100;
     
-    // Success rate - votes where MP was on winning side
-    const successfulVotes = votesWithBallot.filter(vote => {
+    // Success rate - votes where MP was on winning side (only substantive votes)
+    const successfulVotes = substantiveVotes.filter(vote => {
       const mpVotedYes = vote.mp_ballot === 'Yes';
       const billPassed = vote.result === 'Passed';
       return (mpVotedYes && billPassed) || (!mpVotedYes && !billPassed);
     }).length;
-    const successRate = (successfulVotes / votesWithBallot.length) * 100;
+    const successRate = (successfulVotes / totalVotes) * 100;
     
     // Bill types analysis
     const billVotes = votesWithBallot.filter(vote => vote.bill_url !== null);
@@ -471,7 +473,7 @@ function MPDetail() {
               {stats.totalVotes}
             </div>
             <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
-              Votes with recorded position
+              Substantive votes (Yes/No only)
             </div>
           </div>
 
@@ -487,7 +489,7 @@ function MPDetail() {
               {Math.round(stats.participationRate)}%
             </div>
             <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
-              Voted yes or no (vs abstained)
+              Voted yes/no vs paired/abstained
             </div>
           </div>
 
