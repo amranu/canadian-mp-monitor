@@ -96,6 +96,21 @@ function VoteDetails() {
     }
   };
 
+  // Extract bill session and number from bill_url for links
+  const getBillInfoFromUrl = (billUrl) => {
+    if (!billUrl) return null;
+    
+    // Bill URLs typically look like: /bills/45-1/c-1/ or /bills/45-1/s-203/
+    const match = billUrl.match(/\/bills\/([^\/]+)\/([^\/]+)\//);
+    if (match) {
+      return {
+        session: match[1],
+        number: match[2].toUpperCase()
+      };
+    }
+    return null;
+  };
+
   const getPartyColor = (party) => {
     const colors = {
       'Conservative': '#1e3a8a',
@@ -328,6 +343,80 @@ function VoteDetails() {
                         fontStyle: 'italic'
                       }}>
                         {billTitle}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                
+                {/* Bill Navigation Links */}
+                {(() => {
+                  const billInfo = getBillInfoFromUrl(vote.bill_url);
+                  if (billInfo) {
+                    return (
+                      <div style={{ 
+                        marginTop: '12px',
+                        display: 'flex',
+                        gap: '10px',
+                        flexWrap: 'wrap'
+                      }}>
+                        {/* Internal Bill Detail Link */}
+                        <button
+                          onClick={() => navigate(`/bill/${billInfo.session}/${billInfo.number}`)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 12px',
+                            backgroundColor: '#0969da',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontSize: '13px',
+                            fontWeight: '500',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.backgroundColor = '#0550ae';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.backgroundColor = '#0969da';
+                          }}
+                        >
+                          📄 View Bill Details
+                        </button>
+                        
+                        {/* LEGISInfo Link */}
+                        <a
+                          href={`https://www.parl.ca/legisinfo/en/bill/${billInfo.session}/${billInfo.number.toLowerCase()}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 12px',
+                            backgroundColor: '#f8f9fa',
+                            color: '#0969da',
+                            border: '1px solid #0969da',
+                            borderRadius: '6px',
+                            fontSize: '13px',
+                            fontWeight: '500',
+                            textDecoration: 'none',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.backgroundColor = '#e3f2fd';
+                            e.target.style.borderColor = '#0550ae';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.backgroundColor = '#f8f9fa';
+                            e.target.style.borderColor = '#0969da';
+                          }}
+                        >
+                          🏛️ Official LEGISinfo ↗
+                        </a>
                       </div>
                     );
                   }
