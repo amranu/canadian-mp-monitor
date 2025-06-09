@@ -378,10 +378,10 @@ function BillDetail() {
             {bill.legis_summary}
           </div>
           
-          {bill.legis_url && (
+          {(bill.legis_url || (bill.session && bill.number)) && (
             <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #e9ecef' }}>
               <a
-                href={bill.legis_url}
+                href={bill.legis_url || `https://www.parl.ca/legisinfo/en/bill/${bill.session}/${bill.number.toLowerCase()}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
