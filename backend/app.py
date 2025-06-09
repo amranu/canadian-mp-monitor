@@ -46,7 +46,7 @@ cache = {
     'bills': {'data': None, 'expires': 0, 'loading': False},
     'mp_votes': {},  # {mp_slug: {'data': [...], 'expires': timestamp, 'loading': False}}
     'mp_details': {},  # Cache for individual MP details fetched from API
-    'historical_mps': {'data': {}, 'loaded': False}  # Historical MP data from previous sessions
+    'historical_mps': {'data': [], 'loaded': False}  # Historical MP data from previous sessions
 }
 
 @app.route('/')
@@ -254,14 +254,14 @@ def load_historical_mps():
         if os.path.exists(HISTORICAL_MPS_FILE):
             with open(HISTORICAL_MPS_FILE, 'r') as f:
                 historical_data = json.load(f)
-            cache['historical_mps']['data'] = historical_data.get('data', {})
+            cache['historical_mps']['data'] = historical_data.get('data', [])
             cache['historical_mps']['loaded'] = True
             print(f"[{datetime.now()}] Loaded {len(cache['historical_mps']['data'])} historical MPs")
         else:
             print(f"[{datetime.now()}] No historical MPs file found, will fetch unknown MPs from API")
     except Exception as e:
         print(f"[{datetime.now()}] Error loading historical MPs: {e}")
-        cache['historical_mps']['data'] = {}
+        cache['historical_mps']['data'] = []
         cache['historical_mps']['loaded'] = True
 
 def load_persistent_cache():
