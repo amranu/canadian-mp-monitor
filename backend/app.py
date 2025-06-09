@@ -808,7 +808,7 @@ def get_vote_ballots():
 
 @app.route('/api/politician/<path:politician_path>/votes')
 def get_politician_votes(politician_path):
-    limit = int(request.args.get('limit', 1000))  # Allow large limits for cached data
+    limit = int(request.args.get('limit', 5000))  # Allow large limits for cached data
     offset = int(request.args.get('offset', 0))
     
     try:

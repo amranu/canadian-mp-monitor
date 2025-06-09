@@ -229,8 +229,8 @@ function MPDetail() {
       setLoadingMoreVotes(true);
       const mpUrl = `/politicians/${mpSlug}/`;
       
-      // Load ALL votes for this MP (up to 1000)
-      const data = await parliamentApi.getMPVotes(mpUrl, 1000, 0);
+      // Load ALL votes for this MP (up to 5000)
+      const data = await parliamentApi.getMPVotes(mpUrl, 5000, 0);
       
       if (data.objects && data.objects.length > 0) {
         console.log(`Loaded ${data.objects.length} total votes for ${mpSlug}`);
@@ -258,7 +258,7 @@ function MPDetail() {
       const mpUrl = `/politicians/${mpSlug}/`;
       const newOffset = votesOffset + 20;
       
-      const data = await parliamentApi.getMPVotes(mpUrl, 1000, newOffset);
+      const data = await parliamentApi.getMPVotes(mpUrl, 5000, newOffset);
       
       if (data.objects && data.objects.length > 0) {
         // Append new votes to existing ones
@@ -316,7 +316,7 @@ function MPDetail() {
         }
       }
       
-      const data = await parliamentApi.getMPVotes(mpUrl, 1000, 0);
+      const data = await parliamentApi.getMPVotes(mpUrl, 5000, 0);
       
       // Check if votes are being loaded in background
       if (data.loading && retryCount < 20) {

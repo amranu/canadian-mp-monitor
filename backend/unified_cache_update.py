@@ -647,7 +647,7 @@ class UnifiedCacheUpdater:
         # Sort by date descending
         votes_with_ballots.sort(key=lambda x: x.get('date', ''), reverse=True)
         
-        return votes_with_ballots[:1000]  # Limit to most recent 1000 votes
+        return votes_with_ballots[:5000]  # Limit to most recent 5000 votes
     
     def update_historical_mps(self) -> bool:
         """Update historical MPs cache for previous sessions"""

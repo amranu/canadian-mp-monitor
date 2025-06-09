@@ -674,7 +674,7 @@ def main():
     parser = argparse.ArgumentParser(description='Calculate party-line voting statistics')
     parser.add_argument('--force', action='store_true', help='Force recalculation even if cache exists')
     parser.add_argument('--memory-limit', type=int, default=MAX_MEMORY_MB, help='Memory limit in MB')
-    parser.add_argument('--max-votes', type=int, default=1000, help='Maximum votes to analyze per MP')
+    parser.add_argument('--max-votes', type=int, default=5000, help='Maximum votes to analyze per MP')
     parser.add_argument('--batch-size', type=int, default=10, help='Number of MPs to process before reporting')
     
     args = parser.parse_args()
