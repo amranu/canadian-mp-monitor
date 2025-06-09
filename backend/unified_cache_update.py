@@ -758,8 +758,8 @@ class UnifiedCacheUpdater:
         with ThreadPoolExecutor(max_workers=5) as executor:
             future_to_url = {}
             
-            # Process all historical MPs, not just 200
-            for mp_url in list(historical_mp_urls)[:500]:  # Increased limit
+            # Process all historical MPs found in vote cache
+            for mp_url in list(historical_mp_urls):
                 future = executor.submit(self._fetch_historical_mp, mp_url)
                 future_to_url[future] = mp_url
             
