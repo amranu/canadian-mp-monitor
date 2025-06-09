@@ -9,10 +9,12 @@ function BillDetail() {
   const [loading, setLoading] = useState(true);
   const [relatedVotes, setRelatedVotes] = useState([]);
   const [loadingVotes, setLoadingVotes] = useState(false);
+  const [allMPs, setAllMPs] = useState([]);
 
   useEffect(() => {
     loadBill();
     loadRelatedVotes();
+    loadAllMPs();
   }, [session, number]);
 
   const loadBill = async () => {
@@ -43,6 +45,76 @@ function BillDetail() {
     } finally {
       setLoadingVotes(false);
     }
+  };
+
+  const loadAllMPs = async () => {
+    try {
+      const data = await parliamentApi.getMPs(400, 0);
+      setAllMPs(data.objects || []);
+    } catch (error) {
+      console.error('Error loading MPs:', error);
+    }
+  };
+
+  const findMPByName = (sponsorName) => {
+    if (!sponsorName || !allMPs.length) return null;
+    
+    // Clean up the sponsor name - remove titles and extra text
+    const cleanSponsorName = sponsorName
+      .replace(/^(Hon\.?|Mr\.?|Mrs\.?|Ms\.?|Dr\.?)\s+/i, '') // Remove titles
+      .replace(/\s+\([^)]+\)$/, '') // Remove party info in parentheses
+      .trim();
+    
+    // Try to find exact match first
+    let mp = allMPs.find(mp => 
+      mp.name && mp.name.toLowerCase() === cleanSponsorName.toLowerCase()
+    );
+    
+    if (mp) return mp;
+    
+    // Try partial match - split name and check if both first and last names match
+    const nameParts = cleanSponsorName.split(' ');
+    if (nameParts.length >= 2) {
+      const firstName = nameParts[0].toLowerCase();
+      const lastName = nameParts[nameParts.length - 1].toLowerCase();
+      
+      mp = allMPs.find(mp => {
+        if (!mp.name) return false;
+        const mpNameLower = mp.name.toLowerCase();
+        return mpNameLower.includes(firstName) && mpNameLower.includes(lastName);
+      });
+    }
+    
+    return mp;
+  };
+
+  const renderSponsorWithLink = (sponsorName) => {
+    const mp = findMPByName(sponsorName);
+    
+    if (mp && mp.url) {
+      const mpSlug = mp.url.replace('/politicians/', '').replace('/', '');
+      return (
+        <span
+          onClick={() => navigate(`/mp/${mpSlug}`)}
+          style={{
+            color: '#007bff',
+            cursor: 'pointer',
+            textDecoration: 'underline',
+            fontWeight: '500'
+          }}
+          onMouseEnter={(e) => {
+            e.target.style.color = '#0056b3';
+          }}
+          onMouseLeave={(e) => {
+            e.target.style.color = '#007bff';
+          }}
+        >
+          {sponsorName}
+        </span>
+      );
+    }
+    
+    return <span>{sponsorName}</span>;
   };
 
   const formatDate = (dateString) => {
@@ -229,7 +301,9 @@ function BillDetail() {
           {bill.legis_sponsor && (
             <div>
               <h4 style={{ margin: '0 0 8px 0', color: '#495057' }}>Sponsor</h4>
-              <p style={{ margin: '0', fontSize: '16px', fontWeight: '500' }}>{bill.legis_sponsor}</p>
+              <p style={{ margin: '0', fontSize: '16px', fontWeight: '500' }}>
+                {renderSponsorWithLink(bill.legis_sponsor)}
+              </p>
               {bill.legis_sponsor_title && (
                 <p style={{ margin: '5px 0 0 0', fontSize: '14px', color: '#6c757d' }}>
                   {bill.legis_sponsor_title}
