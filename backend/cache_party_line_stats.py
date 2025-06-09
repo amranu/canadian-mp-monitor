@@ -364,7 +364,7 @@ def get_mp_list_from_cache():
     
     return {}
 
-def get_votes_for_mp_analysis(mp_slug, max_votes=500):
+def get_votes_for_mp_analysis(mp_slug, max_votes=5000):
     """Get votes for MP analysis, prioritizing by session (45-1, 44-1, 43-2, etc.)"""
     vote_files = glob.glob(os.path.join(VOTE_DETAILS_CACHE_DIR, '*.json'))
     votes_data = {}
@@ -481,7 +481,7 @@ def save_incremental_results(mp_slug, mp_stats, existing_data=None):
     save_party_line_cache(existing_data)
     return existing_data
 
-def calculate_all_party_line_stats(memory_limit_mb=MAX_MEMORY_MB, max_votes_per_mp=300, force_recalculate=False):
+def calculate_all_party_line_stats(memory_limit_mb=MAX_MEMORY_MB, max_votes_per_mp=5000, force_recalculate=False):
     """Calculate party-line statistics for all MPs with memory-efficient processing"""
     print(f"[{datetime.now()}] Starting memory-efficient party-line statistics calculation...")
     

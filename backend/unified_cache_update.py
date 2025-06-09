@@ -805,9 +805,9 @@ class UnifiedCacheUpdater:
                 except:
                     pass  # If we can't parse expiration, proceed with update
             
-            # Run party-line calculation with memory limits
+            # Run party-line calculation with memory limits and increased vote limit
             self.logger.info("Calculating party-line statistics with memory optimization...")
-            stats_data = cache_party_line_stats.calculate_all_party_line_stats()
+            stats_data = cache_party_line_stats.calculate_all_party_line_stats(max_votes_per_mp=5000)
             
             if stats_data:
                 success = cache_party_line_stats.save_party_line_cache(stats_data)
