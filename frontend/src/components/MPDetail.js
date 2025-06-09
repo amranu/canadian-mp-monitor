@@ -1349,7 +1349,7 @@ function MPDetail() {
                 style={{ 
                   display: 'flex',
                   flexDirection: 'column',
-                  alignItems: 'center',
+                  alignItems: 'flex-start',
                   gap: '20px',
                   width: '100%'
                 }}
@@ -1360,7 +1360,7 @@ function MPDetail() {
                     .sponsored-bills-grid {
                       display: grid !important;
                       grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)) !important;
-                      justify-content: center !important;
+                      justify-content: start !important;
                     }
                   }
                 `}</style>
