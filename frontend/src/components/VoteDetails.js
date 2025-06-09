@@ -451,43 +451,6 @@ function VoteDetails() {
 
 
 
-      {/* Party Statistics */}
-      {sortedParties && sortedParties.length > 0 ? (
-      <div style={{ marginBottom: '30px' }}>
-        <h2 style={{ marginBottom: '20px' }}>Party Voting Statistics</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
-          {sortedParties.map(([party, stats]) => (
-            <div key={party} style={{
-              border: '1px solid #ddd',
-              borderRadius: '8px',
-              padding: '15px',
-              backgroundColor: 'white'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                <div style={{
-                  width: '12px',
-                  height: '12px',
-                  backgroundColor: getPartyColor(party),
-                  borderRadius: '2px',
-                  marginRight: '8px'
-                }}></div>
-                <h3 style={{ margin: 0, fontSize: '16px' }}>{party}</h3>
-              </div>
-              
-              <div style={{ fontSize: '14px', lineHeight: '1.5' }}>
-                <div><strong>Total MPs:</strong> {stats.total}</div>
-                <div style={{ color: '#16a34a' }}><strong>✓ Yes:</strong> {stats.yes} ({Math.round(stats.yes / stats.total * 100)}%)</div>
-                <div style={{ color: '#dc2626' }}><strong>✗ No:</strong> {stats.no} ({Math.round(stats.no / stats.total * 100)}%)</div>
-                {stats.paired > 0 && <div style={{ color: '#ca8a04' }}><strong>⚖️ Paired:</strong> {stats.paired}</div>}
-                {stats.absent > 0 && <div style={{ color: '#9ca3af' }}><strong>📭 Absent:</strong> {stats.absent}</div>}
-                {stats.other > 0 && <div style={{ color: '#6b7280' }}><strong>Other:</strong> {stats.other}</div>}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-      ) : null}
-
       {/* Unified MP Vote Visualization */}
       <div style={{ marginBottom: '30px' }}>
         <h2 style={{ marginBottom: '20px' }}>Individual MP Votes</h2>
@@ -626,6 +589,43 @@ function VoteDetails() {
           </div>
         </div>
       </div>
+
+      {/* Party Statistics */}
+      {sortedParties && sortedParties.length > 0 ? (
+      <div style={{ marginBottom: '30px' }}>
+        <h2 style={{ marginBottom: '20px' }}>Party Voting Statistics</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '15px' }}>
+          {sortedParties.map(([party, stats]) => (
+            <div key={party} style={{
+              border: '1px solid #ddd',
+              borderRadius: '8px',
+              padding: '15px',
+              backgroundColor: 'white'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
+                <div style={{
+                  width: '12px',
+                  height: '12px',
+                  backgroundColor: getPartyColor(party),
+                  borderRadius: '2px',
+                  marginRight: '8px'
+                }}></div>
+                <h3 style={{ margin: 0, fontSize: '16px' }}>{party}</h3>
+              </div>
+              
+              <div style={{ fontSize: '14px', lineHeight: '1.5' }}>
+                <div><strong>Total MPs:</strong> {stats.total}</div>
+                <div style={{ color: '#16a34a' }}><strong>✓ Yes:</strong> {stats.yes} ({Math.round(stats.yes / stats.total * 100)}%)</div>
+                <div style={{ color: '#dc2626' }}><strong>✗ No:</strong> {stats.no} ({Math.round(stats.no / stats.total * 100)}%)</div>
+                {stats.paired > 0 && <div style={{ color: '#ca8a04' }}><strong>⚖️ Paired:</strong> {stats.paired}</div>}
+                {stats.absent > 0 && <div style={{ color: '#9ca3af' }}><strong>📭 Absent:</strong> {stats.absent}</div>}
+                {stats.other > 0 && <div style={{ color: '#6b7280' }}><strong>Other:</strong> {stats.other}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      ) : null}
 
       {/* Detailed MP List */}
       <div>
