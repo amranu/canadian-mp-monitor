@@ -894,11 +894,21 @@ class UnifiedCacheUpdater:
         # Force all updates
         self.force_full = True
         self.run_auto_mode(max_mps=max_mps)
+    
+    def run_party_line_mode(self):
+        """Run only party-line statistics update"""
+        self.logger.info("Starting unified cache update (PARTY-LINE mode)")
+        
+        # Force party-line update
+        self.force_full = True
+        self.update_party_line_stats()
+        
+        self.save_statistics()
 
 def main():
     parser = argparse.ArgumentParser(description='Unified Cache Update Script')
-    parser.add_argument('--mode', choices=['auto', 'incremental', 'full'], default='auto',
-                       help='Update mode: auto (smart), incremental (new data only), full (rebuild all)')
+    parser.add_argument('--mode', choices=['auto', 'incremental', 'full', 'party-line'], default='auto',
+                       help='Update mode: auto (smart), incremental (new data only), full (rebuild all), party-line (only party line stats)')
     parser.add_argument('--force', action='store_true',
                        help='Force update even if cache is fresh')
     parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], default='INFO',
@@ -921,6 +931,8 @@ def main():
             updater.run_incremental_mode(max_mps=args.max_mps)
         elif args.mode == 'full':
             updater.run_full_mode(max_mps=args.max_mps)
+        elif args.mode == 'party-line':
+            updater.run_party_line_mode()
             
     except KeyboardInterrupt:
         updater.logger.info("Cache update interrupted by user")

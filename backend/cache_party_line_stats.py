@@ -439,11 +439,6 @@ def get_votes_for_mp_analysis(mp_slug, max_votes=500):
         
         if session_vote_count > 0:
             print(f"  Found {session_vote_count} votes in session {session} for {mp_slug}")
-        
-        # If we found substantial votes in this session, we can stop here for efficiency
-        # (unless we need votes from multiple sessions)
-        if processed_votes >= 50:  # Found substantial voting record
-            break
     
     return votes_data
 
