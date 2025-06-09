@@ -632,12 +632,32 @@ function MPDetail() {
                   <h4 style={{ margin: '0 0 15px 0', color: '#495057' }}>Recent Party Discipline Breaks</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
                     {partyLineStats.party_discipline_breaks.slice(0, 3).map((break_, index) => (
-                      <div key={index} style={{ 
-                        padding: '8px',
-                        backgroundColor: '#fff3cd',
-                        borderRadius: '4px',
-                        border: '1px solid #ffeaa7'
-                      }}>
+                      <div 
+                        key={index} 
+                        onClick={() => {
+                          // Convert vote_id format from "45-1_4" to "45-1/4" for navigation
+                          const voteId = break_.vote_id.replace(/_/g, '/');
+                          const encodedVoteId = encodeURIComponent(voteId);
+                          console.log('Navigating to party discipline break vote:', voteId, 'encoded as:', encodedVoteId, 'from vote_id:', break_.vote_id);
+                          navigate(`/vote/${encodedVoteId}`);
+                        }}
+                        style={{ 
+                          padding: '8px',
+                          backgroundColor: '#fff3cd',
+                          borderRadius: '4px',
+                          border: '1px solid #ffeaa7',
+                          cursor: 'pointer',
+                          transition: 'background-color 0.2s, transform 0.1s'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.backgroundColor = '#ffecb3';
+                          e.target.style.transform = 'translateY(-1px)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.backgroundColor = '#fff3cd';
+                          e.target.style.transform = 'translateY(0)';
+                        }}
+                      >
                         <div style={{ fontWeight: 'bold', marginBottom: '2px' }}>
                           {break_.date} - Voted {break_.mp_vote} (Party: {break_.party_position})
                         </div>
@@ -645,6 +665,9 @@ function MPDetail() {
                           {break_.description?.length > 80 
                             ? break_.description.substring(0, 80) + '...' 
                             : break_.description}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#856404', marginTop: '4px', fontStyle: 'italic' }}>
+                          Click to view vote details →
                         </div>
                       </div>
                     ))}
