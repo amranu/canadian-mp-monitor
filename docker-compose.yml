@@ -8,6 +8,8 @@ services:
     environment:
       - FLASK_ENV=production
       - FLASK_DEBUG=false
+      - LANG=en_CA.UTF-8
+      - LC_ALL=en_CA.UTF-8
     volumes:
       - /home/root/mp-monitor/backend/cache:/app/cache
     networks:
