@@ -569,93 +569,8 @@ def enrich_bill_with_legisinfo(bill):
     
     return bill
 
-def enrich_bills_with_sponsor_info(bills, target_sessions=None):
-    """Enrich bills with sponsor information from LEGISinfo"""
-    try:
-        if not cache['politicians']['data']:
-            print(f"[{datetime.now()}] No politicians cache available for sponsor mapping")
-            return bills
-            
-        # Create a mapping of politician names to URLs for faster lookup
-        politician_name_to_url = {}
-        for mp in cache['politicians']['data']:
-            if mp.get('name'):
-                # Store multiple name variations for better matching
-                name = mp['name'].strip()
-                politician_name_to_url[name] = mp['url']
-                
-                # Also store first-last format if different
-                name_parts = name.split()
-                if len(name_parts) >= 2:
-                    first_last = f"{name_parts[0]} {name_parts[-1]}"
-                    if first_last != name:
-                        politician_name_to_url[first_last] = mp['url']
-        
-        enriched_bills = []
-        enrichment_count = 0
-        
-        # If target_sessions is specified, only enrich bills from those sessions
-        bills_to_enrich = bills
-        if target_sessions:
-            if isinstance(target_sessions, str):
-                target_sessions = [target_sessions]
-            bills_to_enrich = [bill for bill in bills if bill.get('session') in target_sessions]
-            print(f"[{datetime.now()}] Targeting sessions {target_sessions}: {len(bills_to_enrich)} bills to enrich")
-        
-        for bill in bills:
-            enriched_bill = bill.copy()
-            
-            # Skip enrichment for bills not in target sessions
-            if target_sessions and bill.get('session') not in target_sessions:
-                enriched_bills.append(enriched_bill)
-                continue
-            
-            # Try to get sponsor info from LEGISinfo
-            legis_data = fetch_legisinfo_data(bill.get('session', ''), bill.get('number', ''))
-            if legis_data:
-                # Handle both list and dict responses
-                if isinstance(legis_data, list) and len(legis_data) > 0:
-                    legis_info = legis_data[0]
-                elif isinstance(legis_data, dict):
-                    legis_info = legis_data
-                else:
-                    legis_info = None
-                
-                if legis_info:
-                    sponsor_name = legis_info.get('SponsorPersonName')
-                    if sponsor_name:
-                        # Clean the sponsor name and try to match
-                        sponsor_name = sponsor_name.strip()
-                        
-                        # Try exact match first
-                        sponsor_url = politician_name_to_url.get(sponsor_name)
-                        
-                        # If no exact match, try partial matching
-                        if not sponsor_url:
-                            for name, url in politician_name_to_url.items():
-                                if name.lower() in sponsor_name.lower() or sponsor_name.lower() in name.lower():
-                                    sponsor_url = url
-                                    break
-                        
-                        if sponsor_url:
-                            enriched_bill['sponsor_politician_url'] = sponsor_url
-                            enriched_bill['sponsor_name'] = sponsor_name
-                            enrichment_count += 1
-                            print(f"[{datetime.now()}] Matched sponsor {sponsor_name} -> {sponsor_url} for bill {bill.get('session')}/{bill.get('number')}")
-                        else:
-                            print(f"[{datetime.now()}] Could not match sponsor '{sponsor_name}' for bill {bill.get('session')}/{bill.get('number')}")
-            
-            enriched_bills.append(enriched_bill)
-            
-            # Small delay to avoid overwhelming LEGISinfo API
-            time.sleep(0.1)
-        
-        print(f"[{datetime.now()}] Enriched {enrichment_count} of {len(bills_to_enrich)} bills with sponsor information")
-        return enriched_bills
-        
-    except Exception as e:
-        print(f"[{datetime.now()}] Error enriching bills with sponsor info: {e}")
-        return bills
+# DEPRECATED: Sponsor enrichment now handled by unified cache script
+# def enrich_bills_with_sponsor_info() - moved to unified_cache_update.py
 
 def update_bills_cache():
     """Update the bills cache"""
@@ -668,10 +583,9 @@ def update_bills_cache():
         
         all_bills = load_all_bills()
         
-        # Enrich bills with sponsor information (more sessions to get more sponsored bills)
-        recent_sessions = ['45-1', '44-1', '43-2', '43-1', '42-1', '41-2', '41-1']
-        print(f"[{datetime.now()}] Enriching bills with sponsor information for sessions: {recent_sessions}...")
-        enriched_bills = enrich_bills_with_sponsor_info(all_bills, target_sessions=recent_sessions)
+        # Bills are now enriched with sponsor information by the unified cache script
+        # No need to enrich here as it's handled during cache generation
+        enriched_bills = all_bills
         
         cache['bills']['data'] = enriched_bills
         cache['bills']['expires'] = time.time() + CACHE_DURATION

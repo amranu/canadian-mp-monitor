@@ -48,7 +48,8 @@ CACHE_DURATIONS = {
     'bills': 21600,          # 6 hours - bills change less frequently
     'vote_details': 86400,   # 24 hours - vote details are immutable
     'mp_votes': 7200,        # 2 hours - MP voting records
-    'historical_mps': 604800 # 1 week - historical data changes rarely
+    'historical_mps': 604800, # 1 week - historical data changes rarely
+    'legisinfo': 86400       # 24 hours - LEGISinfo data is mostly static
 }
 
 # Cache file paths
@@ -60,6 +61,7 @@ VOTE_DETAILS_CACHE_DIR = os.path.join(CACHE_DIR, 'vote_details')
 VOTE_CACHE_INDEX_FILE = os.path.join(CACHE_DIR, 'vote_cache_index.json')
 MP_VOTES_CACHE_DIR = os.path.join(CACHE_DIR, 'mp_votes')
 HISTORICAL_MPS_CACHE_FILE = os.path.join(CACHE_DIR, 'historical_mps.json')
+LEGISINFO_CACHE_DIR = os.path.join(CACHE_DIR, 'legisinfo')
 STATISTICS_FILE = os.path.join(CACHE_DIR, 'unified_cache_statistics.json')
 
 # API rate limiting
@@ -109,6 +111,7 @@ class UnifiedCacheUpdater:
         os.makedirs(CACHE_DIR, exist_ok=True)
         os.makedirs(MP_VOTES_CACHE_DIR, exist_ok=True)
         os.makedirs(VOTE_DETAILS_CACHE_DIR, exist_ok=True)
+        os.makedirs(LEGISINFO_CACHE_DIR, exist_ok=True)
     
     def acquire_lock(self):
         """Acquire process lock to prevent multiple instances"""
@@ -538,12 +541,31 @@ class UnifiedCacheUpdater:
             return bills
     
     def _fetch_legisinfo_sponsor(self, session: str, bill_number: str) -> Optional[str]:
-        """Fetch sponsor name from LEGISinfo API"""
+        """Fetch sponsor name from LEGISinfo API with caching"""
         try:
-            url = f"https://www.parl.ca/LegisInfo/en/bill/{session}/{bill_number.lower()}/json"
+            # Create safe filename
+            safe_bill_number = bill_number.replace('/', '_').replace('\\', '_')
+            cache_filename = f"{session}_{safe_bill_number}.json"
+            cache_file_path = os.path.join(LEGISINFO_CACHE_DIR, cache_filename)
             
-            # Use direct requests for LEGISinfo (different from Parliament API)
+            # Ensure cache directory exists
+            os.makedirs(LEGISINFO_CACHE_DIR, exist_ok=True)
+            
+            # Check if cache exists and is fresh
+            if os.path.exists(cache_file_path):
+                try:
+                    cache_mtime = os.path.getmtime(cache_file_path)
+                    if time.time() - cache_mtime < CACHE_DURATIONS['legisinfo']:
+                        with open(cache_file_path, 'r') as f:
+                            cached_data = json.load(f)
+                        return cached_data.get('SponsorPersonName')
+                except Exception as e:
+                    self.logger.debug(f"Error reading LEGISinfo cache for {session}/{bill_number}: {e}")
+            
+            # Fetch from API
+            url = f"https://www.parl.ca/LegisInfo/en/bill/{session}/{bill_number.lower()}/json"
             response = requests.get(url, timeout=10)
+            
             if not response.ok:
                 return None
             
@@ -558,6 +580,14 @@ class UnifiedCacheUpdater:
                 legis_info = data
             else:
                 return None
+            
+            # Cache the data
+            try:
+                with open(cache_file_path, 'w') as f:
+                    json.dump(legis_info, f, indent=2)
+                self.logger.debug(f"Cached LEGISinfo data for {session}/{bill_number}")
+            except Exception as e:
+                self.logger.debug(f"Error caching LEGISinfo data for {session}/{bill_number}: {e}")
             
             return legis_info.get('SponsorPersonName')
             
