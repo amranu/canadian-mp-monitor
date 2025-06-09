@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { parliamentApi } from '../services/parliamentApi';
 import BillCard from './BillCard';
+import SEOHead from './SEOHead';
 
 function MPDetail() {
   const { mpSlug } = useParams();
@@ -844,8 +845,45 @@ function MPDetail() {
     );
   }
 
+  // Generate structured data for the MP
+  const mpJsonLd = mp ? {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "name": mp.name,
+    "jobTitle": "Member of Parliament",
+    "affiliation": {
+      "@type": "PoliticalParty",
+      "name": mp.current_party?.name?.en || "Unknown Party"
+    },
+    "workLocation": {
+      "@type": "Place",
+      "name": mp.current_riding?.name?.en || "Unknown Riding",
+      "address": {
+        "@type": "PostalAddress",
+        "addressRegion": mp.current_riding?.province || "Unknown Province",
+        "addressCountry": "CA"
+      }
+    },
+    "memberOf": {
+      "@type": "GovernmentOrganization",
+      "name": "Parliament of Canada"
+    },
+    "url": `https://mptracker.ca/mp/${mpSlug}`
+  } : null;
+
   return (
-    <div style={{ padding: '20px' }}>
+    <>
+      {mp && (
+        <SEOHead 
+          title={`${mp.name} - MP for ${mp.current_riding?.name?.en || 'Unknown Riding'} | Canadian MP Monitor`}
+          description={`View ${mp.name}'s voting record, sponsored bills, and parliamentary activity. ${mp.current_party?.name?.en || 'MP'} representative for ${mp.current_riding?.name?.en || 'constituency'}, ${mp.current_riding?.province || 'Canada'}.`}
+          keywords={`${mp.name}, MP, Member of Parliament, ${mp.current_party?.name?.en || ''}, ${mp.current_riding?.name?.en || ''}, ${mp.current_riding?.province || ''}, voting record, Canadian politics`}
+          ogTitle={`${mp.name} - Canadian MP`}
+          ogDescription={`${mp.current_party?.name?.en || 'MP'} representative for ${mp.current_riding?.name?.en || 'constituency'}. View voting records and parliamentary activity.`}
+          jsonLd={mpJsonLd}
+        />
+      )}
+      <div style={{ padding: '20px' }}>
       <button 
         onClick={() => navigate('/')}
         style={{ 
@@ -1397,7 +1435,8 @@ function MPDetail() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 

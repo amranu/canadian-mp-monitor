@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { parliamentApi } from '../services/parliamentApi';
 import BillCard from './BillCard';
+import SEOHead from './SEOHead';
 
 function Bills() {
   const navigate = useNavigate();
@@ -112,8 +113,33 @@ function Bills() {
   };
 
 
+  const billsJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "DataCatalog",
+    "name": "Canadian Parliamentary Bills",
+    "description": "Complete database of bills introduced in the Canadian Parliament",
+    "url": "https://mptracker.ca/bills",
+    "publisher": {
+      "@type": "WebApplication",
+      "name": "Canadian MP Monitor"
+    },
+    "about": {
+      "@type": "GovernmentOrganization",
+      "name": "Parliament of Canada"
+    }
+  };
+
   return (
-    <div style={{ padding: '20px' }}>
+    <>
+      <SEOHead 
+        title="Canadian Parliamentary Bills - Track Legislation | Canadian MP Monitor"
+        description={`Browse and search ${totalCount} parliamentary bills from the Canadian Parliament. Track government and private member bills, view voting records, and monitor legislative progress.`}
+        keywords="Canadian bills, parliamentary bills, legislation, government bills, private member bills, Parliament bills, Canadian law, legislative process"
+        ogTitle="Canadian Parliamentary Bills Database"
+        ogDescription={`Complete database of ${totalCount} bills from the Canadian Parliament with voting records and status updates.`}
+        jsonLd={billsJsonLd}
+      />
+      <div style={{ padding: '20px' }}>
       <div style={{ marginBottom: '30px' }}>
         <h1 style={{ margin: '0 0 10px 0' }}>Parliamentary Bills</h1>
         <p style={{ color: '#666', marginBottom: '20px' }}>
@@ -389,7 +415,8 @@ function Bills() {
           </button>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 

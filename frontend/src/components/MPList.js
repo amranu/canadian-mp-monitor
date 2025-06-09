@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { parliamentApi } from '../services/parliamentApi';
+import SEOHead from './SEOHead';
 
 function MPList() {
   const navigate = useNavigate();
@@ -73,8 +74,41 @@ function MPList() {
     setFilteredMPs(allMPs);
   };
 
+  const mpJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Canadian MP Monitor",
+    "description": "Track Canadian Members of Parliament, their voting records, and parliamentary bills",
+    "url": "https://mptracker.ca",
+    "applicationCategory": "Government & Politics",
+    "operatingSystem": "Web Browser",
+    "about": {
+      "@type": "GovernmentOrganization",
+      "name": "Canadian Parliament",
+      "sameAs": [
+        "https://www.parl.ca",
+        "https://openparliament.ca"
+      ]
+    },
+    "featureList": [
+      "MP Directory",
+      "Voting Records",
+      "Bill Tracking",
+      "Parliamentary Statistics"
+    ]
+  };
+
   return (
-    <div style={{ padding: '20px' }}>
+    <>
+      <SEOHead 
+        title="Canadian Members of Parliament - MP Directory | Canadian MP Monitor"
+        description={`Browse all ${allMPs.length} current Canadian Members of Parliament. Find your MP, view their voting records, and track their parliamentary activity. Search by name, party, or riding.`}
+        keywords="Canadian MPs, Members of Parliament, MP directory, Canadian politicians, Parliament members, MP search, Canadian representatives, constituency representatives"
+        ogTitle="Canadian Members of Parliament Directory"
+        ogDescription={`Complete directory of all ${allMPs.length} current Canadian MPs with voting records and parliamentary activity.`}
+        jsonLd={mpJsonLd}
+      />
+      <div style={{ padding: '20px' }}>
       <div style={{ marginBottom: '20px' }}>
         <h2>
           {searchQuery ? 
@@ -207,7 +241,8 @@ function MPList() {
         </div>
       )}
 
-    </div>
+      </div>
+    </>
   );
 }
 

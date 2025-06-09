@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { parliamentApi } from '../services/parliamentApi';
+import SEOHead from './SEOHead';
 
 function BillDetail() {
   const { session, number } = useParams();
@@ -189,8 +190,43 @@ function BillDetail() {
     );
   }
 
+  // Generate structured data for the bill
+  const billJsonLd = bill ? {
+    "@context": "https://schema.org",
+    "@type": "Legislation",
+    "name": bill.name?.en || `Bill ${session}-${number}`,
+    "legislationIdentifier": `${session}-${number}`,
+    "legislationDate": bill.introduced,
+    "legislationLegalValue": "Bill",
+    "legislationJurisdiction": {
+      "@type": "Country",
+      "name": "Canada"
+    },
+    "sponsor": bill.legis_sponsor ? {
+      "@type": "Person",
+      "name": bill.legis_sponsor,
+      "jobTitle": "Member of Parliament"
+    } : null,
+    "legislationPassedBy": {
+      "@type": "GovernmentOrganization",
+      "name": "Parliament of Canada"
+    },
+    "url": `https://mptracker.ca/bill/${session}/${number}`
+  } : null;
+
   return (
-    <div style={{ padding: '20px' }}>
+    <>
+      {bill && (
+        <SEOHead 
+          title={`${bill.name?.en || `Bill ${session}-${number}`} | Canadian MP Monitor`}
+          description={`${bill.legis_summary || `Details for Bill ${session}-${number} introduced in the Canadian Parliament.`}${bill.legis_sponsor ? ` Sponsored by ${bill.legis_sponsor}.` : ''} View voting records and legislative progress.`}
+          keywords={`Bill ${session}-${number}, Canadian legislation, Parliament bill, ${bill.legis_sponsor || ''}, Canadian law, parliamentary voting`}
+          ogTitle={`${bill.name?.en || `Bill ${session}-${number}`} - Canadian Parliament`}
+          ogDescription={`Parliamentary bill ${session}-${number}${bill.legis_sponsor ? ` sponsored by ${bill.legis_sponsor}` : ''}. View details and voting records.`}
+          jsonLd={billJsonLd}
+        />
+      )}
+      <div style={{ padding: '20px' }}>
       <button 
         onClick={() => navigate(-1)}
         style={{ 
@@ -494,7 +530,8 @@ function BillDetail() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

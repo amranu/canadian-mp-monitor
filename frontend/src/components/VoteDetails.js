@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { parliamentApi } from '../services/parliamentApi';
+import SEOHead from './SEOHead';
 
 function VoteDetails() {
   const { voteId } = useParams();
@@ -213,8 +214,47 @@ function VoteDetails() {
     sortedParties = [['All MPs', totalStats]];
   }
 
+  // Generate structured data for the vote
+  const voteJsonLd = vote && voteDetails ? {
+    "@context": "https://schema.org",
+    "@type": "GovernmentOrganization",
+    "name": "Parliament of Canada",
+    "event": {
+      "@type": "Event",
+      "name": vote.description?.en || `Parliamentary Vote ${vote.number}`,
+      "startDate": vote.date,
+      "organizer": {
+        "@type": "GovernmentOrganization",
+        "name": "Parliament of Canada"
+      },
+      "location": {
+        "@type": "Place",
+        "name": "House of Commons",
+        "address": {
+          "@type": "PostalAddress",
+          "addressLocality": "Ottawa",
+          "@type": "PostalAddress",
+          "addressRegion": "Ontario",
+          "addressCountry": "CA"
+        }
+      }
+    },
+    "url": `https://mptracker.ca/vote/${encodeURIComponent(voteId)}`
+  } : null;
+
   return (
-    <div style={{ padding: '20px' }}>
+    <>
+      {vote && (
+        <SEOHead 
+          title={`${vote.description?.en || `Vote ${vote.number}`} - ${vote.date} | Canadian MP Monitor`}
+          description={`Parliamentary vote ${vote.number} from ${vote.date}. Result: ${vote.result}. View detailed voting breakdown by MP and party with complete ballot information.`}
+          keywords={`Parliamentary vote, ${vote.session}, Canadian Parliament voting, MP voting records, ${vote.result}, parliamentary decision`}
+          ogTitle={`Parliamentary Vote ${vote.number} - ${vote.result}`}
+          ogDescription={`Vote ${vote.number} from ${vote.date} resulted in: ${vote.result}. See how each MP voted.`}
+          jsonLd={voteJsonLd}
+        />
+      )}
+      <div style={{ padding: '20px' }}>
       <button 
         onClick={() => navigate(-1)}
         style={{ 
@@ -550,7 +590,8 @@ function VoteDetails() {
           ))}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
