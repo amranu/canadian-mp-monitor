@@ -37,12 +37,12 @@ function MPDetail() {
     }
   }, [mp]);
 
-  // Load party-line statistics when component loads or session changes
+  // Load party-line statistics when component loads
   useEffect(() => {
-    if (mpSlug && !partyLineLoading) {
+    if (mpSlug && !partyLineLoading && !partyLineStats) {
       loadPartyLineStats();
     }
-  }, [mpSlug, selectedSession]);
+  }, [mpSlug]);
 
   // Load party-line sessions data when component loads
   useEffect(() => {
@@ -95,14 +95,19 @@ function MPDetail() {
       };
     }
     
+    // For specific sessions (including 'current' resolved to actual session)
+    const targetSession = selectedSession === 'current' && availableSessions.length > 0 
+      ? availableSessions[0] 
+      : selectedSession;
+    
     // Get session-specific stats
-    const sessionStats = partyLineStats.party_loyalty_by_session?.[selectedSession];
+    const sessionStats = partyLineStats.party_loyalty_by_session?.[targetSession];
     if (sessionStats) {
       return {
         percentage: sessionStats.percentage,
         votes: sessionStats.party_line,
         total: sessionStats.total,
-        label: `Session ${selectedSession}`
+        label: `Session ${targetSession}`
       };
     }
     
@@ -407,9 +412,9 @@ function MPDetail() {
   const loadPartyLineStats = async () => {
     try {
       setPartyLineLoading(true);
-      // Pass session parameter if a specific session is selected (not 'all' or 'current')
-      const sessionParam = (selectedSession !== 'all' && selectedSession !== 'current') ? selectedSession : null;
-      const data = await parliamentApi.getMPPartyLineStats(mpSlug, sessionParam);
+      // Always load all party line stats (not session-specific) to get comprehensive data
+      // The session filtering happens in the frontend display logic
+      const data = await parliamentApi.getMPPartyLineStats(mpSlug, null);
       setPartyLineStats(data);
       console.log('Party-line stats loaded:', data);
     } catch (error) {
@@ -527,30 +532,31 @@ function MPDetail() {
           </div>
 
           {/* Party-Line Statistics Card */}
-          {partyLineStats && (
-            <div style={{
-              backgroundColor: '#f8f9fa',
-              padding: '20px',
-              borderRadius: '8px',
-              border: '1px solid #dee2e6',
-              textAlign: 'center'
-            }}>
-              <h3 style={{ margin: '0 0 10px 0', color: '#495057' }}>
-                Party-Line Voting
-                {partyLineStats.session && (
+          {partyLineStats && (() => {
+            const sessionStats = getSessionPartyLineStats();
+            return sessionStats && (
+              <div style={{
+                backgroundColor: '#f8f9fa',
+                padding: '20px',
+                borderRadius: '8px',
+                border: '1px solid #dee2e6',
+                textAlign: 'center'
+              }}>
+                <h3 style={{ margin: '0 0 10px 0', color: '#495057' }}>
+                  Party-Line Voting
                   <div style={{ fontSize: '12px', fontWeight: 'normal', color: '#666', marginTop: '4px' }}>
-                    Session {partyLineStats.session}
+                    {sessionStats.label}
                   </div>
-                )}
-              </h3>
-              <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#495057' }}>
-                {partyLineStats.party_line_percentage}%
+                </h3>
+                <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#495057' }}>
+                  {sessionStats.percentage}%
+                </div>
+                <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
+                  Voted with {partyLineStats.mp_party} majority ({sessionStats.votes}/{sessionStats.total} votes)
+                </div>
               </div>
-              <div style={{ fontSize: '14px', color: '#6c757d', marginTop: '5px' }}>
-                Voted with {partyLineStats.mp_party} majority ({partyLineStats.party_line_votes}/{partyLineStats.total_eligible_votes} votes)
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* Party-Line Detailed Stats */}
