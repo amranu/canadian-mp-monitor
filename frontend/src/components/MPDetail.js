@@ -1371,7 +1371,7 @@ function MPDetail() {
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'flex-start',
-                  gap: '20px',
+                  gap: '4px',
                   width: '100%'
                 }}
                 className="sponsored-bills-grid"
