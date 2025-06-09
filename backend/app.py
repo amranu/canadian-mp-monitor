@@ -1013,6 +1013,7 @@ def build_mp_votes_from_comprehensive_cache(mp_slug):
         
         cached_votes = index_data.get('cached_votes', {})
         mp_votes = []
+        seen_vote_urls = set()  # Track processed votes to avoid duplicates
         mp_url = f'/politicians/{mp_slug}/'
         
         # Check each cached vote for this MP's ballot
@@ -1024,11 +1025,18 @@ def build_mp_votes_from_comprehensive_cache(mp_slug):
                     with open(vote_cache_file, 'r') as f:
                         vote_details = json.load(f)
                     
+                    vote_data = vote_details.get('vote', {})
+                    
+                    # Skip if we've already processed this vote (prevents duplicates from different file naming)
+                    vote_url = vote_data.get('url', '')
+                    if vote_url in seen_vote_urls:
+                        continue
+                    seen_vote_urls.add(vote_url)
+                    
                     # Find this MP's ballot in the vote
                     for ballot in vote_details.get('ballots', []):
                         if ballot.get('politician_url') == mp_url:
                             # Build vote record with MP's ballot - ensure all expected fields exist
-                            vote_data = vote_details.get('vote', {})
                             vote_record = {
                                 'url': vote_data.get('url', ''),
                                 'date': vote_data.get('date', ''),
