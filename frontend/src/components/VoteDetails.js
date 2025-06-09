@@ -8,11 +8,13 @@ function VoteDetails() {
   const [vote, setVote] = useState(null);
   const [voteDetails, setVoteDetails] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [allMPs, setAllMPs] = useState([]);
 
   useEffect(() => {
     console.log('VoteDetails useEffect triggered, voteId:', voteId);
     if (voteId) {
       loadVoteDetails();
+      loadAllMPs();
     }
   }, [voteId]);
 
@@ -47,6 +49,49 @@ function VoteDetails() {
     } finally {
       setLoading(false);
       console.log('Loading finished');
+    }
+  };
+
+  const loadAllMPs = async () => {
+    try {
+      const data = await parliamentApi.getMPs(400, 0);
+      setAllMPs(data.objects || []);
+    } catch (error) {
+      console.error('Error loading MPs:', error);
+    }
+  };
+
+  const findMPByName = (mpName) => {
+    if (!mpName || !allMPs.length) return null;
+    
+    // Try exact match first
+    let mp = allMPs.find(mp => 
+      mp.name && mp.name.toLowerCase() === mpName.toLowerCase()
+    );
+    
+    if (mp) return mp;
+    
+    // Try partial match - split name and check if both first and last names match
+    const nameParts = mpName.split(' ');
+    if (nameParts.length >= 2) {
+      const firstName = nameParts[0].toLowerCase();
+      const lastName = nameParts[nameParts.length - 1].toLowerCase();
+      
+      mp = allMPs.find(mp => {
+        if (!mp.name) return false;
+        const mpNameLower = mp.name.toLowerCase();
+        return mpNameLower.includes(firstName) && mpNameLower.includes(lastName);
+      });
+    }
+    
+    return mp;
+  };
+
+  const handleMPClick = (mpName) => {
+    const mp = findMPByName(mpName);
+    if (mp && mp.url) {
+      const mpSlug = mp.url.replace('/politicians/', '').replace('/', '');
+      navigate(`/mp/${mpSlug}`);
     }
   };
 
@@ -372,6 +417,7 @@ function VoteDetails() {
                 <div
                   key={index}
                   title={`${mp.mp_name || 'Unknown'} (${mp.mp_party || 'Unknown'})\n${mp.mp_riding || 'Unknown'}, ${mp.mp_province || 'Unknown'}\nVoted: ${mp.ballot || 'Unknown'}`}
+                  onClick={() => handleMPClick(mp.mp_name)}
                   style={{
                     width: '22px',
                     height: '22px',
@@ -457,14 +503,26 @@ function VoteDetails() {
           {(voteDetails.ballots || [])
             .sort((a, b) => (a.mp_name || '').localeCompare(b.mp_name || ''))
             .map((ballot, index) => (
-            <div key={index} style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '10px 15px',
-              backgroundColor: index % 2 === 0 ? '#f8f9fa' : 'white',
-              borderRadius: '4px'
-            }}>
+            <div 
+              key={index} 
+              onClick={() => handleMPClick(ballot.mp_name)}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '10px 15px',
+                backgroundColor: index % 2 === 0 ? '#f8f9fa' : 'white',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.backgroundColor = '#e3f2fd';
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.backgroundColor = index % 2 === 0 ? '#f8f9fa' : 'white';
+              }}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div style={{
                   width: '12px',
