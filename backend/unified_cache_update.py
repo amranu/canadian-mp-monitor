@@ -650,45 +650,52 @@ class UnifiedCacheUpdater:
         return votes_with_ballots[:5000]  # Limit to most recent 5000 votes
     
     def update_historical_mps(self) -> bool:
-        """Update historical MPs cache for previous sessions"""
+        """Update historical MPs cache from cached vote details"""
         self.log_operation("Historical MPs", "STARTED")
         
         if not self.is_cache_expired(HISTORICAL_MPS_CACHE_FILE, 'historical_mps'):
             self.log_operation("Historical MPs", "SKIPPED", "Cache still fresh")
             return True
         
-        # Get sample votes from session 44-1 to find historical MPs
-        historical_votes = self.api_request(f'{PARLIAMENT_API_BASE}/votes/', {
-            'limit': 100, 'offset': 0
-        })
-        
-        if not historical_votes or not historical_votes.get('objects'):
-            self.log_operation("Historical MPs", "FAILED", "No votes data")
-            return False
-        
-        # Extract unique historical MP URLs from vote ballots
+        # Extract unique historical MP URLs from cached vote details (more comprehensive)
         historical_mp_urls = set()
         
-        for vote in historical_votes['objects']:
-            if vote.get('session') == '44-1':  # Focus on previous session
-                ballots_data = self.api_request(f'{PARLIAMENT_API_BASE}/votes/ballots/', {
-                    'vote': vote['url'],
-                    'limit': 400
-                })
+        # Process all cached vote details to find historical MPs
+        vote_cache_files = []
+        if os.path.exists(VOTE_DETAILS_CACHE_DIR):
+            vote_cache_files = [f for f in os.listdir(VOTE_DETAILS_CACHE_DIR) if f.endswith('.json')]
+        
+        for vote_file in vote_cache_files:
+            try:
+                vote_path = os.path.join(VOTE_DETAILS_CACHE_DIR, vote_file)
+                with open(vote_path, 'r') as f:
+                    vote_data = json.load(f)
                 
-                if ballots_data and ballots_data.get('objects'):
-                    for ballot in ballots_data['objects']:
+                # Focus on historical sessions (not current session 45-1)
+                vote_info = vote_data.get('vote', {})
+                session = vote_info.get('session', '')
+                
+                if session and session != '45-1':  # Include all historical sessions
+                    ballots = vote_data.get('ballots', [])
+                    for ballot in ballots:
                         politician_url = ballot.get('politician_url')
                         if politician_url:
                             historical_mp_urls.add(politician_url)
+                            
+            except Exception as e:
+                self.logger.debug(f"Error processing vote file {vote_file}: {e}")
+                continue
         
-        # Fetch details for historical MPs
+        self.logger.info(f"Found {len(historical_mp_urls)} unique historical MP URLs")
+        
+        # Fetch details for historical MPs (increase limit for comprehensive coverage)
         historical_mps = []
         
         with ThreadPoolExecutor(max_workers=5) as executor:
             future_to_url = {}
             
-            for mp_url in list(historical_mp_urls)[:200]:  # Limit to 200 MPs
+            # Process all historical MPs, not just 200
+            for mp_url in list(historical_mp_urls)[:500]:  # Increased limit
                 future = executor.submit(self._fetch_historical_mp, mp_url)
                 future_to_url[future] = mp_url
             

@@ -162,7 +162,8 @@ def enrich_cached_vote_details(cached_data):
     # Get politician maps
     politicians = cache['politicians'].get('data', [])
     politician_map = {mp['url']: mp for mp in politicians} if politicians else {}
-    historical_mps = cache['historical_mps'].get('data', {})
+    historical_mps_list = cache['historical_mps'].get('data', [])
+    historical_mps = {mp['url']: mp for mp in historical_mps_list} if historical_mps_list else {}
     
     # Enrich ballots with MP details
     enriched_ballots = []
