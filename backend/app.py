@@ -1771,13 +1771,8 @@ def load_party_line_cache():
             with open(PARTY_LINE_CACHE_FILE, 'r') as f:
                 data = json.load(f)
             
-            # Check if cache is still valid (2 hours)
-            from datetime import datetime
-            cache_expires = datetime.fromisoformat(data['summary']['cache_expires'])
-            if datetime.now() < cache_expires:
-                return data
-            else:
-                print(f"[{datetime.now()}] Party-line cache expired")
+            # Cache never expires - always return data if file exists
+            return data
         
     except Exception as e:
         print(f"Error loading party-line cache: {e}")
