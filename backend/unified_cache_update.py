@@ -670,6 +670,7 @@ class UnifiedCacheUpdater:
         """Build MP votes from cached vote details (memory efficient)"""
         mp_politician_url = f'/politicians/{mp_slug}/'
         votes_with_ballots = []
+        seen_vote_urls = set()  # Track processed votes to avoid duplicates
         
         # Process vote cache in batches
         vote_files = [f for f in os.listdir(VOTE_DETAILS_CACHE_DIR) if f.endswith('.json')]
@@ -685,6 +686,12 @@ class UnifiedCacheUpdater:
                     
                     vote_info = vote_data.get('vote', {})
                     ballots = vote_data.get('ballots', [])
+                    
+                    # Skip if we've already processed this vote (prevents duplicates from different file naming)
+                    vote_url = vote_info.get('url', '')
+                    if vote_url in seen_vote_urls:
+                        continue
+                    seen_vote_urls.add(vote_url)
                     
                     # Find this MP's ballot
                     mp_ballot = None
