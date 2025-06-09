@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { parliamentApi } from '../services/parliamentApi';
 import BillCard from './BillCard';
 
 function MPDetail() {
   const { mpSlug } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [mp, setMp] = useState(null);
   const [mpDetails, setMpDetails] = useState(null);
   const [votes, setVotes] = useState([]);
@@ -16,7 +17,11 @@ function MPDetail() {
   const [hasMoreVotes, setHasMoreVotes] = useState(true);
   const [votesOffset, setVotesOffset] = useState(0);
   const [loadingFromApi, setLoadingFromApi] = useState(false);
-  const [activeTab, setActiveTab] = useState('votes');
+  const [activeTab, setActiveTab] = useState(() => {
+    // Initialize tab from URL params, default to 'votes'
+    const tabFromUrl = searchParams.get('tab');
+    return ['votes', 'statistics', 'bills'].includes(tabFromUrl) ? tabFromUrl : 'votes';
+  });
   const [selectedSession, setSelectedSession] = useState('current');
   const [availableSessions, setAvailableSessions] = useState([]);
   const [sponsoredBills, setSponsoredBills] = useState([]);
@@ -26,9 +31,25 @@ function MPDetail() {
   const [partyLineSessions, setPartyLineSessions] = useState(null);
   const [partyLineSessionsLoading, setPartyLineSessionsLoading] = useState(false);
 
+  // Function to update tab and persist to URL
+  const updateActiveTab = (newTab) => {
+    setActiveTab(newTab);
+    const newSearchParams = new URLSearchParams(searchParams);
+    newSearchParams.set('tab', newTab);
+    setSearchParams(newSearchParams, { replace: true });
+  };
+
   useEffect(() => {
     loadMP();
   }, [mpSlug]);
+
+  // Sync activeTab state with URL parameters (for browser back/forward)
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab');
+    if (tabFromUrl && ['votes', 'statistics', 'bills'].includes(tabFromUrl) && tabFromUrl !== activeTab) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [searchParams, activeTab]);
 
   // Load sponsored bills when component loads to determine if tab should be shown
   useEffect(() => {
@@ -395,14 +416,14 @@ function MPDetail() {
       
       // If currently on bills tab but no bills found, switch to votes tab
       if (activeTab === 'bills' && (!data.objects || data.objects.length === 0)) {
-        setActiveTab('votes');
+        updateActiveTab('votes');
       }
     } catch (error) {
       console.error('Error loading sponsored bills:', error);
       setSponsoredBills([]);
       // If currently on bills tab but error occurred, switch to votes tab
       if (activeTab === 'bills') {
-        setActiveTab('votes');
+        updateActiveTab('votes');
       }
     } finally {
       setBillsLoading(false);
@@ -887,7 +908,7 @@ function MPDetail() {
       }}>
         <div style={{ display: 'flex', gap: '0' }}>
           <button
-            onClick={() => setActiveTab('votes')}
+            onClick={() => updateActiveTab('votes')}
             style={{
               padding: '12px 24px',
               border: 'none',
@@ -914,7 +935,7 @@ function MPDetail() {
             📊 Voting Record
           </button>
           <button
-            onClick={() => setActiveTab('statistics')}
+            onClick={() => updateActiveTab('statistics')}
             style={{
               padding: '12px 24px',
               border: 'none',
@@ -943,7 +964,7 @@ function MPDetail() {
           {/* Only show Bills tab if MP has sponsored bills */}
           {!billsLoading && sponsoredBills.length > 0 && (
             <button
-              onClick={() => setActiveTab('bills')}
+              onClick={() => updateActiveTab('bills')}
               style={{
                 padding: '12px 24px',
                 border: 'none',
