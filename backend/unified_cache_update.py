@@ -22,6 +22,7 @@ Replaces:
 import requests
 import json
 import os
+import sys
 import time
 import tempfile
 import shutil
@@ -66,6 +67,9 @@ API_DELAY_BETWEEN_REQUESTS = 0.2  # 200ms delay between requests
 API_DELAY_BETWEEN_BATCHES = 1.0   # 1 second delay between batches
 MAX_CONCURRENT_WORKERS = 3        # Max concurrent API requests
 
+# Process locking
+LOCK_FILE = os.path.join(CACHE_DIR, 'unified_cache_update.lock')
+
 class UnifiedCacheUpdater:
     def __init__(self, mode='auto', force_full=False, log_level='INFO'):
         """
@@ -98,12 +102,65 @@ class UnifiedCacheUpdater:
         self.logger = logging.getLogger(__name__)
         
         self.ensure_cache_dirs()
+        self.acquire_lock()
         
     def ensure_cache_dirs(self):
         """Ensure all cache directories exist"""
         os.makedirs(CACHE_DIR, exist_ok=True)
         os.makedirs(MP_VOTES_CACHE_DIR, exist_ok=True)
         os.makedirs(VOTE_DETAILS_CACHE_DIR, exist_ok=True)
+    
+    def acquire_lock(self):
+        """Acquire process lock to prevent multiple instances"""
+        if os.path.exists(LOCK_FILE):
+            try:
+                with open(LOCK_FILE, 'r') as f:
+                    lock_data = json.load(f)
+                
+                # Check if the process is still running
+                lock_pid = lock_data.get('pid')
+                if lock_pid:
+                    try:
+                        os.kill(lock_pid, 0)  # Check if process exists
+                        self.logger.error(f"Another unified cache update is already running (PID: {lock_pid})")
+                        self.logger.error("If you're sure no other process is running, delete the lock file:")
+                        self.logger.error(f"rm {LOCK_FILE}")
+                        sys.exit(1)
+                    except OSError:
+                        # Process doesn't exist, remove stale lock
+                        self.logger.warning("Removing stale lock file")
+                        os.remove(LOCK_FILE)
+            except Exception as e:
+                self.logger.warning(f"Error reading lock file: {e}, removing it")
+                os.remove(LOCK_FILE)
+        
+        # Create lock file
+        lock_data = {
+            'pid': os.getpid(),
+            'started_at': datetime.now().isoformat(),
+            'mode': self.mode
+        }
+        
+        try:
+            with open(LOCK_FILE, 'w') as f:
+                json.dump(lock_data, f, indent=2)
+            self.logger.info(f"Acquired process lock (PID: {os.getpid()})")
+        except Exception as e:
+            self.logger.error(f"Could not create lock file: {e}")
+            sys.exit(1)
+    
+    def release_lock(self):
+        """Release process lock"""
+        try:
+            if os.path.exists(LOCK_FILE):
+                os.remove(LOCK_FILE)
+                self.logger.info("Released process lock")
+        except Exception as e:
+            self.logger.error(f"Error releasing lock: {e}")
+    
+    def __del__(self):
+        """Cleanup lock on object destruction"""
+        self.release_lock()
         
     def log_operation(self, operation: str, status: str, details: str = ""):
         """Log operation with structured format"""
@@ -860,9 +917,13 @@ def main():
             
     except KeyboardInterrupt:
         updater.logger.info("Cache update interrupted by user")
+        updater.release_lock()
     except Exception as e:
         updater.logger.error(f"Cache update failed: {e}")
+        updater.release_lock()
         raise
+    finally:
+        updater.release_lock()
 
 if __name__ == "__main__":
     main()
