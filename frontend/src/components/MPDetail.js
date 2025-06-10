@@ -62,7 +62,7 @@ function MPDetail() {
     if (tabFromUrl && ['votes', 'statistics', 'bills'].includes(tabFromUrl) && tabFromUrl !== activeTab) {
       setActiveTab(tabFromUrl);
     }
-  }, [searchParams, activeTab]);
+  }, [searchParams]); // Removed activeTab dependency to prevent loops
 
   // Load sponsored bills when component loads to determine if tab should be shown
   useEffect(() => {
