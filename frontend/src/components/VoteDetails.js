@@ -424,7 +424,38 @@ function VoteDetails() {
                             e.target.style.borderColor = '#0969da';
                           }}
                         >
-                          🏛️ Official LEGISinfo ↗
+                          🏛️ Bill Details ↗
+                        </a>
+                        
+                        {/* Full Text Link */}
+                        <a
+                          href={`https://www.parl.ca/DocumentViewer/en/${billInfo.session}/bill/${billInfo.number.toUpperCase()}/first-reading`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '8px 12px',
+                            backgroundColor: '#f8f9fa',
+                            color: '#28a745',
+                            border: '1px solid #28a745',
+                            borderRadius: '6px',
+                            fontSize: '13px',
+                            fontWeight: '500',
+                            textDecoration: 'none',
+                            transition: 'all 0.2s'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.backgroundColor = '#e8f5e8';
+                            e.target.style.borderColor = '#1e7e34';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.backgroundColor = '#f8f9fa';
+                            e.target.style.borderColor = '#28a745';
+                          }}
+                        >
+                          📄 Full Text ↗
                         </a>
                       </div>
                     );
