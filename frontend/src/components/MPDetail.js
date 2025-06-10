@@ -1419,7 +1419,7 @@ function MPDetail() {
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'flex-start',
-                  gap: '4px',
+                  gap: '20px',
                   width: '100%'
                 }}
                 className="sponsored-bills-grid"
@@ -1428,8 +1428,9 @@ function MPDetail() {
                   @media (min-width: 769px) {
                     .sponsored-bills-grid {
                       display: grid !important;
-                      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)) !important;
+                      grid-template-columns: repeat(auto-fill, 400px) !important;
                       justify-content: start !important;
+                      gap: 20px !important;
                     }
                   }
                 `}</style>
