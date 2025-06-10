@@ -23,7 +23,7 @@ function MPDetail() {
     const tabFromUrl = searchParams.get('tab');
     return ['votes', 'statistics', 'bills'].includes(tabFromUrl) ? tabFromUrl : 'votes';
   });
-  const [selectedSession, setSelectedSession] = useState('current');
+  const [selectedSession, setSelectedSession] = useState('all');
   const [availableSessions, setAvailableSessions] = useState([]);
   const [sponsoredBills, setSponsoredBills] = useState([]);
   const [billsLoading, setBillsLoading] = useState(false);
@@ -85,23 +85,18 @@ function MPDetail() {
     }
   }, []);
 
-  // Extract available sessions from votes and set current session as default
+  // Extract available sessions from votes
   useEffect(() => {
     if (votes && votes.length > 0) {
       const sessions = [...new Set(votes.map(vote => vote.session))].sort().reverse();
       setAvailableSessions(sessions);
-      
-      // Set current session as default if not already set
-      if (selectedSession === 'current' && sessions.length > 0) {
-        setSelectedSession(sessions[0]); // Most recent session first
-      }
     }
   }, [votes]);
 
 
   // Load all votes when a specific session is selected
   useEffect(() => {
-    if (selectedSession !== 'all' && selectedSession !== 'current' && mp && !loadingMoreVotes) {
+    if (selectedSession !== 'all' && mp && !loadingMoreVotes) {
       // When a specific session is selected, load all available votes for that MP
       console.log(`Loading all votes for MP when Session ${selectedSession} is selected`);
       loadAllVotesForMP();
@@ -129,10 +124,8 @@ function MPDetail() {
       };
     }
     
-    // For specific sessions (including 'current' resolved to actual session)
-    const targetSession = selectedSession === 'current' && availableSessions.length > 0 
-      ? availableSessions[0] 
-      : selectedSession;
+    // For specific sessions
+    const targetSession = selectedSession;
     
     // Get session-specific stats
     const sessionStats = partyLineStats.party_loyalty_by_session?.[targetSession];
