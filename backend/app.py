@@ -20,7 +20,7 @@ HEADERS = {
 }
 
 # Cache configuration
-CACHE_DURATION = 10800  # 3 hours in seconds
+CACHE_DURATION = 172800  # 48 hours in seconds
 CACHE_DIR = 'cache'
 POLITICIANS_CACHE_FILE = os.path.join(CACHE_DIR, 'politicians.json')
 VOTES_CACHE_FILE = os.path.join(CACHE_DIR, 'votes.json')
@@ -502,8 +502,8 @@ def fetch_legisinfo_data(session, bill_number):
             try:
                 with open(cache_file, 'r') as f:
                     cached_data = json.load(f)
-                # Check if cache is less than 24 hours old
-                if time.time() - cached_data.get('cached_at', 0) < 86400:
+                # Check if cache is less than 48 hours old
+                if time.time() - cached_data.get('cached_at', 0) < 172800:
                     print(f"[{datetime.now()}] Serving LEGISinfo data for {session}/{bill_number} from cache")
                     return cached_data.get('data')
             except Exception as e:

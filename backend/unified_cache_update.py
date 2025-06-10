@@ -45,13 +45,13 @@ HEADERS = {
 # Cache configuration
 CACHE_DIR = 'cache'
 CACHE_DURATIONS = {
-    'politicians': 14400,     # 4 hours - MPs don't change often
-    'votes': 3600,           # 1 hour - votes happen frequently
-    'bills': 21600,          # 6 hours - bills change less frequently
-    'vote_details': 86400,   # 24 hours - vote details are immutable
-    'mp_votes': 7200,        # 2 hours - MP voting records
+    'politicians': 172800,    # 48 hours - MPs don't change often
+    'votes': 172800,         # 48 hours - votes happen frequently but cache longer
+    'bills': 172800,         # 48 hours - bills change less frequently
+    'vote_details': 172800,  # 48 hours - vote details are immutable
+    'mp_votes': 172800,      # 48 hours - MP voting records
     'historical_mps': 604800, # 1 week - historical data changes rarely
-    'legisinfo': 86400,      # 24 hours - LEGISinfo data is mostly static
+    'legisinfo': 172800,     # 48 hours - LEGISinfo data is mostly static
     'images': 2592000        # 30 days - MP images change rarely
 }
 
