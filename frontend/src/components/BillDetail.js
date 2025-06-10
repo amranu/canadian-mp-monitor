@@ -225,7 +225,7 @@ function BillDetail() {
     <>
       {bill && (
         <SEOHead 
-          title={`${bill.name?.en || `Bill ${session}-${number}`} | Canadian MP Monitor`}
+          title={`${bill.name?.en || `Bill ${session}-${number}`} | Canadian MP Tracker`}
           description={`${bill.legis_summary || `Details for Bill ${session}-${number} introduced in the Canadian Parliament.`}${bill.legis_sponsor ? ` Sponsored by ${bill.legis_sponsor}.` : ''} View voting records and legislative progress.`}
           keywords={`Bill ${session}-${number}, Canadian legislation, Parliament bill, ${bill.legis_sponsor || ''}, Canadian law, parliamentary voting`}
           ogTitle={`${bill.name?.en || `Bill ${session}-${number}`} - Canadian Parliament`}

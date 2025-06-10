@@ -78,7 +78,7 @@ const SEOHead = ({
     updateMetaTag('og:description', ogDescription || description, true);
     updateMetaTag('og:type', ogType, true);
     updateMetaTag('og:url', fullUrl, true);
-    updateMetaTag('og:site_name', 'Canadian MP Monitor', true);
+    updateMetaTag('og:site_name', 'Canadian MP Tracker', true);
     updateMetaTag('og:locale', 'en_CA', true);
     
     if (ogImage) {
@@ -97,7 +97,7 @@ const SEOHead = ({
     }
     
     // Additional meta tags
-    updateMetaTag('author', 'Canadian MP Monitor');
+    updateMetaTag('author', 'Canadian MP Tracker');
     updateMetaTag('robots', 'index, follow');
     updateMetaTag('language', 'English');
     updateMetaTag('geo.region', 'CA');

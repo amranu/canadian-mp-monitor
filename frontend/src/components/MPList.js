@@ -101,7 +101,7 @@ function MPList() {
   return (
     <>
       <SEOHead 
-        title="Canadian Members of Parliament - MP Directory | Canadian MP Monitor"
+        title="Canadian Members of Parliament - MP Directory | Canadian MP Tracker"
         description={`Browse all ${allMPs.length} current Canadian Members of Parliament. Find your MP, view their voting records, and track their parliamentary activity. Search by name, party, or riding.`}
         keywords="Canadian MPs, Members of Parliament, MP directory, Canadian politicians, Parliament members, MP search, Canadian representatives, constituency representatives"
         ogTitle="Canadian Members of Parliament Directory"

@@ -890,7 +890,7 @@ function MPDetail() {
     <>
       {mp && (
         <SEOHead 
-          title={`${mp.name} - MP for ${mp.current_riding?.name?.en || 'Unknown Riding'} | Canadian MP Monitor`}
+          title={`${mp.name} - MP for ${mp.current_riding?.name?.en || 'Unknown Riding'} | Canadian MP Tracker`}
           description={`View ${mp.name}'s voting record, sponsored bills, and parliamentary activity. ${mp.current_party?.name?.en || 'MP'} representative for ${mp.current_riding?.name?.en || 'constituency'}, ${mp.current_riding?.province || 'Canada'}.`}
           keywords={`${mp.name}, MP, Member of Parliament, ${mp.current_party?.name?.en || ''}, ${mp.current_riding?.name?.en || ''}, ${mp.current_riding?.province || ''}, voting record, Canadian politics`}
           ogTitle={`${mp.name} - Canadian MP`}

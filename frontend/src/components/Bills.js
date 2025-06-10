@@ -132,7 +132,7 @@ function Bills() {
   return (
     <>
       <SEOHead 
-        title="Canadian Parliamentary Bills - Track Legislation | Canadian MP Monitor"
+        title="Canadian Parliamentary Bills - Track Legislation | Canadian MP Tracker"
         description={`Browse and search ${totalCount} parliamentary bills from the Canadian Parliament. Track government and private member bills, view voting records, and monitor legislative progress.`}
         keywords="Canadian bills, parliamentary bills, legislation, government bills, private member bills, Parliament bills, Canadian law, legislative process"
         ogTitle="Canadian Parliamentary Bills Database"

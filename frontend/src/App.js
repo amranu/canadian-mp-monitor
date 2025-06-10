@@ -29,7 +29,7 @@ function App() {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h1 style={{ margin: 0, color: '#333' }}>Canadian MP Monitor</h1>
+              <h1 style={{ margin: 0, color: '#333' }}>Canadian MP Tracker</h1>
               <p style={{ margin: '5px 0 0 0', color: '#666' }}>
                 Track your Members of Parliament and their voting records
               </p>

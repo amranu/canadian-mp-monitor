@@ -261,7 +261,7 @@ function VoteDetails() {
     <>
       {vote && (
         <SEOHead 
-          title={`${vote.description?.en || `Vote ${vote.number}`} - ${vote.date} | Canadian MP Monitor`}
+          title={`${vote.description?.en || `Vote ${vote.number}`} - ${vote.date} | Canadian MP Tracker`}
           description={`Parliamentary vote ${vote.number} from ${vote.date}. Result: ${vote.result}. View detailed voting breakdown by MP and party with complete ballot information.`}
           keywords={`Parliamentary vote, ${vote.session}, Canadian Parliament voting, MP voting records, ${vote.result}, parliamentary decision`}
           ogTitle={`Parliamentary Vote ${vote.number} - ${vote.result}`}
