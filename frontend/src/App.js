@@ -82,6 +82,33 @@ function App() {
             <Route path="/bill/:session/:number" element={<BillDetail />} />
           </Routes>
         </main>
+        
+        <footer style={{ 
+          backgroundColor: '#ffffff', 
+          padding: '20px', 
+          borderTop: '1px solid #ddd',
+          marginTop: '40px',
+          textAlign: 'center'
+        }}>
+          <p style={{ 
+            margin: 0, 
+            color: '#666', 
+            fontSize: '14px' 
+          }}>
+            Data sourced from{' '}
+            <a 
+              href="https://openparliament.ca" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              style={{ 
+                color: '#007bff', 
+                textDecoration: 'none' 
+              }}
+            >
+              openparliament.ca
+            </a>
+          </p>
+        </footer>
       </div>
     </Router>
   );
