@@ -170,7 +170,7 @@ function MPList() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
               {mp.image && (
                 <img 
-                  src={`https://openparliament.ca${mp.image}`}
+                  src={`/api/images/${mp.url.replace('/politicians/', '').replace('/', '')}`}
                   alt={mp.name}
                   style={{ 
                     width: '60px', 

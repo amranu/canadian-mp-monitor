@@ -32,12 +32,14 @@ BILLS_CACHE_FILE = os.path.join(CACHE_DIR, 'bills.json')
 BILLS_WITH_VOTES_INDEX_FILE = os.path.join(CACHE_DIR, 'bills_with_votes_index.json')
 LEGISINFO_CACHE_DIR = os.path.join(CACHE_DIR, 'legisinfo')
 PARTY_LINE_CACHE_FILE = os.path.join(CACHE_DIR, 'party_line_stats.json')
+IMAGES_CACHE_DIR = os.path.join(CACHE_DIR, 'images')
 
 # Ensure cache directories exist
 os.makedirs(CACHE_DIR, exist_ok=True)
 os.makedirs(MP_VOTES_CACHE_DIR, exist_ok=True)
 os.makedirs(VOTE_DETAILS_CACHE_DIR, exist_ok=True)
 os.makedirs(LEGISINFO_CACHE_DIR, exist_ok=True)
+os.makedirs(IMAGES_CACHE_DIR, exist_ok=True)
 
 # In-memory cache for fast access (loaded from files)
 cache = {
@@ -1958,6 +1960,24 @@ def get_party_line_session_details(session):
         
     except Exception as e:
         print(f"[{datetime.now()}] Error serving session details for {session}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/images/<mp_slug>')
+def serve_mp_image(mp_slug):
+    """Serve cached MP profile images"""
+    try:
+        # Look for image file with various extensions
+        for ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
+            image_path = os.path.join(IMAGES_CACHE_DIR, f"{mp_slug}.{ext}")
+            if os.path.exists(image_path):
+                from flask import send_file
+                return send_file(image_path, mimetype=f'image/{ext}')
+        
+        # If no cached image found, return 404
+        return jsonify({'error': 'Image not found'}), 404
+        
+    except Exception as e:
+        print(f"[{datetime.now()}] Error serving image for {mp_slug}: {e}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':

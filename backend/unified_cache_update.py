@@ -31,6 +31,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Set, Optional, Tuple
 import argparse
 import logging
+import urllib.parse
+from pathlib import Path
 
 # Configuration
 PARLIAMENT_API_BASE = 'https://api.openparliament.ca'
@@ -49,7 +51,8 @@ CACHE_DURATIONS = {
     'vote_details': 86400,   # 24 hours - vote details are immutable
     'mp_votes': 7200,        # 2 hours - MP voting records
     'historical_mps': 604800, # 1 week - historical data changes rarely
-    'legisinfo': 86400       # 24 hours - LEGISinfo data is mostly static
+    'legisinfo': 86400,      # 24 hours - LEGISinfo data is mostly static
+    'images': 2592000        # 30 days - MP images change rarely
 }
 
 # Cache file paths
@@ -62,6 +65,7 @@ VOTE_CACHE_INDEX_FILE = os.path.join(CACHE_DIR, 'vote_cache_index.json')
 MP_VOTES_CACHE_DIR = os.path.join(CACHE_DIR, 'mp_votes')
 HISTORICAL_MPS_CACHE_FILE = os.path.join(CACHE_DIR, 'historical_mps.json')
 LEGISINFO_CACHE_DIR = os.path.join(CACHE_DIR, 'legisinfo')
+IMAGES_CACHE_DIR = os.path.join(CACHE_DIR, 'images')
 STATISTICS_FILE = os.path.join(CACHE_DIR, 'unified_cache_statistics.json')
 
 # API rate limiting
@@ -112,6 +116,7 @@ class UnifiedCacheUpdater:
         os.makedirs(MP_VOTES_CACHE_DIR, exist_ok=True)
         os.makedirs(VOTE_DETAILS_CACHE_DIR, exist_ok=True)
         os.makedirs(LEGISINFO_CACHE_DIR, exist_ok=True)
+        os.makedirs(IMAGES_CACHE_DIR, exist_ok=True)
     
     def acquire_lock(self):
         """Acquire process lock to prevent multiple instances"""
@@ -815,6 +820,164 @@ class UnifiedCacheUpdater:
         """Fetch details for a single historical MP"""
         return self.api_request(f"{PARLIAMENT_API_BASE}{mp_url}")
     
+    def update_mp_images_cache(self) -> bool:
+        """Download and cache MP profile images"""
+        self.log_operation("MP Images Cache", "STARTED")
+        
+        # Load politicians list
+        try:
+            with open(POLITICIANS_CACHE_FILE, 'r') as f:
+                politicians_data = json.load(f)
+            politicians = politicians_data.get('data', [])
+        except Exception as e:
+            self.log_operation("MP Images Cache", "FAILED", f"Cannot load politicians: {e}")
+            return False
+        
+        # Also load historical MPs for comprehensive image caching
+        historical_mps = []
+        try:
+            if os.path.exists(HISTORICAL_MPS_CACHE_FILE):
+                with open(HISTORICAL_MPS_CACHE_FILE, 'r') as f:
+                    historical_data = json.load(f)
+                historical_mps = historical_data.get('data', [])
+        except Exception as e:
+            self.logger.warning(f"Could not load historical MPs for image caching: {e}")
+        
+        # Combine current and historical MPs
+        all_mps = politicians + historical_mps
+        self.logger.info(f"Found {len(politicians)} current MPs and {len(historical_mps)} historical MPs for image caching")
+        
+        successful_downloads = 0
+        skipped_existing = 0
+        failed_downloads = 0
+        
+        # Process MPs in batches to avoid overwhelming the server
+        batch_size = 10
+        for i in range(0, len(all_mps), batch_size):
+            batch = all_mps[i:i + batch_size]
+            
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                future_to_mp = {}
+                
+                for mp in batch:
+                    if mp.get('image'):
+                        future = executor.submit(self._download_mp_image, mp)
+                        future_to_mp[future] = mp
+                
+                for future in as_completed(future_to_mp):
+                    mp = future_to_mp[future]
+                    try:
+                        result = future.result(timeout=30)
+                        if result == 'downloaded':
+                            successful_downloads += 1
+                        elif result == 'skipped':
+                            skipped_existing += 1
+                        else:
+                            failed_downloads += 1
+                    except Exception as e:
+                        failed_downloads += 1
+                        self.logger.error(f"Error downloading image for {mp.get('name', 'Unknown')}: {e}")
+            
+            # Progress logging
+            processed = min((i + 1) * batch_size, len(all_mps))
+            self.logger.info(f"Processed {processed}/{len(all_mps)} MP images")
+            
+            # Delay between batches to be respectful
+            time.sleep(1.0)
+        
+        # Cleanup orphaned images (MPs no longer in the system)
+        cleanup_count = self._cleanup_orphaned_images(all_mps)
+        
+        self.log_operation("MP Images Cache", "COMPLETED", 
+                         f"{successful_downloads} downloaded, {skipped_existing} skipped, {failed_downloads} failed, {cleanup_count} cleaned up")
+        return True
+    
+    def _download_mp_image(self, mp: dict) -> str:
+        """Download image for a single MP"""
+        try:
+            # Extract MP slug from URL
+            mp_slug = mp['url'].replace('/politicians/', '').replace('/', '')
+            image_url = mp.get('image')
+            
+            if not image_url:
+                return 'no_image'
+            
+            # Determine file extension from image URL
+            parsed_url = urllib.parse.urlparse(image_url)
+            path = parsed_url.path.lower()
+            
+            if path.endswith('.jpg') or path.endswith('.jpeg'):
+                ext = 'jpg'
+            elif path.endswith('.png'):
+                ext = 'png'
+            elif path.endswith('.gif'):
+                ext = 'gif'
+            elif path.endswith('.webp'):
+                ext = 'webp'
+            else:
+                ext = 'jpg'  # Default fallback
+            
+            image_path = os.path.join(IMAGES_CACHE_DIR, f"{mp_slug}.{ext}")
+            
+            # Skip if image already exists and is recent (within cache duration)
+            if os.path.exists(image_path):
+                file_age = time.time() - os.path.getmtime(image_path)
+                if file_age < CACHE_DURATIONS['images']:
+                    return 'skipped'
+            
+            # Download image
+            full_image_url = f"https://openparliament.ca{image_url}"
+            response = requests.get(full_image_url, timeout=15, stream=True)
+            response.raise_for_status()
+            
+            # Save image
+            with open(image_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            
+            # Verify the image was downloaded correctly
+            if os.path.getsize(image_path) > 1024:  # At least 1KB
+                self.logger.info(f"Downloaded image for {mp.get('name', mp_slug)} ({os.path.getsize(image_path)} bytes)")
+                return 'downloaded'
+            else:
+                # Remove invalid file
+                os.remove(image_path)
+                return 'failed'
+                
+        except Exception as e:
+            self.logger.error(f"Error downloading image for {mp.get('name', 'Unknown')}: {e}")
+            return 'failed'
+    
+    def _cleanup_orphaned_images(self, current_mps: List[dict]) -> int:
+        """Remove image files for MPs no longer in the system"""
+        try:
+            # Get list of current MP slugs
+            current_slugs = set()
+            for mp in current_mps:
+                mp_slug = mp['url'].replace('/politicians/', '').replace('/', '')
+                current_slugs.add(mp_slug)
+            
+            # Check existing image files
+            cleanup_count = 0
+            if os.path.exists(IMAGES_CACHE_DIR):
+                for filename in os.listdir(IMAGES_CACHE_DIR):
+                    if filename.endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
+                        mp_slug = filename.rsplit('.', 1)[0]  # Remove extension
+                        if mp_slug not in current_slugs:
+                            image_path = os.path.join(IMAGES_CACHE_DIR, filename)
+                            try:
+                                os.remove(image_path)
+                                cleanup_count += 1
+                                self.logger.info(f"Cleaned up orphaned image: {filename}")
+                            except Exception as e:
+                                self.logger.error(f"Error removing orphaned image {filename}: {e}")
+            
+            return cleanup_count
+            
+        except Exception as e:
+            self.logger.error(f"Error during image cleanup: {e}")
+            return 0
+    
     def update_party_line_stats(self) -> bool:
         """Update party-line voting statistics after vote cache updates"""
         self.log_operation("Party-Line Stats", "STARTED")
@@ -901,6 +1064,7 @@ class UnifiedCacheUpdater:
         self.update_bills_cache()
         self.update_mp_voting_records(max_mps=max_mps)
         self.update_historical_mps()
+        self.update_mp_images_cache()
         self.update_party_line_stats()
         
         self.save_statistics()
@@ -988,11 +1152,20 @@ class UnifiedCacheUpdater:
         self.update_historical_mps()
         
         self.save_statistics()
+    
+    def run_images_mode(self):
+        """Run only MP images cache update"""
+        self.logger.info("Starting unified cache update (IMAGES mode)")
+        
+        self.force_full = True
+        self.update_mp_images_cache()
+        
+        self.save_statistics()
 
 def main():
     parser = argparse.ArgumentParser(description='Unified Cache Update Script')
-    parser.add_argument('--mode', choices=['auto', 'incremental', 'full', 'party-line', 'politicians', 'votes', 'vote-details', 'bills', 'mp-votes', 'historical-mps'], default='auto',
-                       help='Update mode: auto (smart), incremental (new data only), full (rebuild all), party-line (only party line stats), politicians (only politicians cache), votes (only votes cache), vote-details (only vote details cache), bills (only bills cache), mp-votes (only MP voting records), historical-mps (only historical MPs cache)')
+    parser.add_argument('--mode', choices=['auto', 'incremental', 'full', 'party-line', 'politicians', 'votes', 'vote-details', 'bills', 'mp-votes', 'historical-mps', 'images'], default='auto',
+                       help='Update mode: auto (smart), incremental (new data only), full (rebuild all), party-line (only party line stats), politicians (only politicians cache), votes (only votes cache), vote-details (only vote details cache), bills (only bills cache), mp-votes (only MP voting records), historical-mps (only historical MPs cache), images (only MP profile images)')
     parser.add_argument('--force', action='store_true',
                        help='Force update even if cache is fresh')
     parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], default='INFO',
@@ -1029,6 +1202,8 @@ def main():
             updater.run_mp_votes_mode(max_mps=args.max_mps)
         elif args.mode == 'historical-mps':
             updater.run_historical_mps_mode()
+        elif args.mode == 'images':
+            updater.run_images_mode()
             
     except KeyboardInterrupt:
         updater.logger.info("Cache update interrupted by user")
