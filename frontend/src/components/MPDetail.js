@@ -40,6 +40,18 @@ function MPDetail() {
     setSearchParams(newSearchParams, { replace: true });
   };
 
+  const getPartyColor = (party) => {
+    const colors = {
+      'Conservative': '#1e3a8a',
+      'Liberal': '#dc2626',
+      'NDP': '#ea580c',
+      'Bloc': '#06b6d4',
+      'Green': '#16a34a',
+      'Unknown': '#6b7280'
+    };
+    return colors[party] || '#6b7280';
+  };
+
   useEffect(() => {
     loadMP();
   }, [mpSlug]);
@@ -932,7 +944,12 @@ function MPDetail() {
         )}
         <div>
           <h1 style={{ margin: '0 0 10px 0' }}>{mp.name}</h1>
-          <p style={{ margin: '5px 0', fontSize: '18px', color: '#007bff' }}>
+          <p style={{ 
+            margin: '5px 0', 
+            fontSize: '18px', 
+            color: getPartyColor(mp.current_party?.short_name?.en || mp.memberships?.[0]?.party?.short_name?.en),
+            fontWeight: '600'
+          }}>
             {mp.current_party?.short_name?.en || mp.memberships?.[0]?.party?.short_name?.en}
           </p>
           <p style={{ margin: '5px 0', fontSize: '16px', color: '#666' }}>
