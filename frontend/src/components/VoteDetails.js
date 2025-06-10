@@ -424,7 +424,7 @@ function VoteDetails() {
                             e.target.style.borderColor = '#0969da';
                           }}
                         >
-                          🏛️ Bill Details ↗
+                          🏛️ LEGISInfo ↗
                         </a>
                         
                         {/* Full Text Link */}
