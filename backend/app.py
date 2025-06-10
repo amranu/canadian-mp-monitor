@@ -33,6 +33,9 @@ BILLS_WITH_VOTES_INDEX_FILE = os.path.join(CACHE_DIR, 'bills_with_votes_index.js
 LEGISINFO_CACHE_DIR = os.path.join(CACHE_DIR, 'legisinfo')
 PARTY_LINE_CACHE_FILE = os.path.join(CACHE_DIR, 'party_line_stats.json')
 IMAGES_CACHE_DIR = os.path.join(CACHE_DIR, 'images')
+EXPENDITURES_INDEX_FILE = os.path.join(CACHE_DIR, 'expenditures', 'mp_expenditures_index.json')
+EXPENDITURES_SUMMARY_FILE = os.path.join(CACHE_DIR, 'expenditures', 'mp_expenditures_summary.json')
+EXPENDITURES_MP_DIR = os.path.join(CACHE_DIR, 'expenditures', 'mp_files')
 
 # Ensure cache directories exist
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -40,6 +43,7 @@ os.makedirs(MP_VOTES_CACHE_DIR, exist_ok=True)
 os.makedirs(VOTE_DETAILS_CACHE_DIR, exist_ok=True)
 os.makedirs(LEGISINFO_CACHE_DIR, exist_ok=True)
 os.makedirs(IMAGES_CACHE_DIR, exist_ok=True)
+os.makedirs(EXPENDITURES_MP_DIR, exist_ok=True)
 
 # In-memory cache for fast access (loaded from files)
 cache = {
@@ -828,6 +832,53 @@ def get_politician_votes(politician_path):
             'total_cached': 0,
             'message': 'No voting records available for this MP.'
         })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/politician/<path:politician_path>/expenditures')
+def get_politician_expenditures(politician_path):
+    """Get expenditure data for a specific MP from individual file"""
+    try:
+        # Load individual MP expenditure file
+        mp_file_path = os.path.join(EXPENDITURES_MP_DIR, f"{politician_path}.json")
+        
+        if os.path.exists(mp_file_path):
+            with open(mp_file_path, 'r', encoding='utf-8') as f:
+                mp_data = json.load(f)
+            
+            # Load index for cache metadata
+            cache_info = {}
+            if os.path.exists(EXPENDITURES_INDEX_FILE):
+                with open(EXPENDITURES_INDEX_FILE, 'r', encoding='utf-8') as f:
+                    index_data = json.load(f)
+                    cache_info = {
+                        'total_mps_in_cache': index_data.get('total_mps', 0),
+                        'cache_scraped_at': index_data.get('scraped_at'),
+                        'total_records': index_data.get('total_records', 0),
+                        'categories': index_data.get('categories', [])
+                    }
+            
+            return jsonify({
+                'mp_name': mp_data.get('mp_name'),
+                'name_slug': mp_data.get('name_slug'),
+                'constituency': mp_data.get('constituency'),
+                'caucus': mp_data.get('caucus'),
+                'scraped_at': mp_data.get('scraped_at'),
+                'periods': mp_data.get('periods', []),
+                'totals': mp_data.get('totals', {}),
+                'cached': True,
+                'cache_info': cache_info
+            })
+        
+        # MP not found in expenditures cache
+        return jsonify({
+            'mp_name': politician_path,
+            'name_slug': politician_path,
+            'expenditures': [],
+            'cached': False,
+            'message': 'Expenditure data not available for this MP. Data may still be collecting.'
+        }), 404
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
