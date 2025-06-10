@@ -304,7 +304,7 @@ function BillDetail() {
               Bill Number
             </div>
             {(bill.legis_url || (bill.session && bill.number)) && (
-              <div style={{ marginTop: '10px' }}>
+              <div style={{ marginTop: '10px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <a
                   href={bill.legis_url || `https://www.parl.ca/legisinfo/en/bill/${bill.session}/${bill.number.toLowerCase()}`}
                   target="_blank"
@@ -334,6 +334,37 @@ function BillDetail() {
                 >
                   <span style={{ fontSize: '10px' }}>🏛️</span>
                   LEGISinfo
+                  <span style={{ fontSize: '10px' }}>↗</span>
+                </a>
+                <a
+                  href={`https://www.parl.ca/DocumentViewer/en/${bill.session}/bill/${bill.number.toUpperCase()}/first-reading`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    color: '#28a745',
+                    textDecoration: 'none',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    padding: '6px 8px',
+                    backgroundColor: 'white',
+                    borderRadius: '4px',
+                    border: '1px solid #dee2e6',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = '#e8f5e8';
+                    e.target.style.borderColor = '#90c695';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'white';
+                    e.target.style.borderColor = '#dee2e6';
+                  }}
+                >
+                  <span style={{ fontSize: '10px' }}>📄</span>
+                  Full Text
                   <span style={{ fontSize: '10px' }}>↗</span>
                 </a>
               </div>

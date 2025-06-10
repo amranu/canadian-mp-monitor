@@ -165,11 +165,14 @@ function BillCard({ bill, onClick }) {
           </span>
         </div>
 
-        {/* LEGISinfo Link */}
+        {/* Links */}
         {bill.legisinfo_id && (
           <div style={{
             paddingTop: '10px',
-            borderTop: '1px solid #e9ecef'
+            borderTop: '1px solid #e9ecef',
+            display: 'flex',
+            gap: '6px',
+            flexWrap: 'wrap'
           }}>
             <a
               href={`https://www.parl.ca/legisinfo/en/bill/${bill.session}/${bill.number.toLowerCase()}`}
@@ -179,7 +182,7 @@ function BillCard({ bill, onClick }) {
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '5px',
+                gap: '4px',
                 color: '#007bff',
                 textDecoration: 'none',
                 fontSize: '11px',
@@ -200,7 +203,39 @@ function BillCard({ bill, onClick }) {
               }}
             >
               <span>🏛️</span>
-              Official Details
+              Details
+              <span style={{ fontSize: '9px' }}>↗</span>
+            </a>
+            <a
+              href={`https://www.parl.ca/DocumentViewer/en/${bill.session}/bill/${bill.number.toUpperCase()}/first-reading`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                color: '#28a745',
+                textDecoration: 'none',
+                fontSize: '11px',
+                fontWeight: '500',
+                padding: '3px 6px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '3px',
+                border: '1px solid #dee2e6',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#e8f5e8';
+                e.currentTarget.style.borderColor = '#90c695';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#f8f9fa';
+                e.currentTarget.style.borderColor = '#dee2e6';
+              }}
+            >
+              <span>📄</span>
+              Full Text
               <span style={{ fontSize: '9px' }}>↗</span>
             </a>
           </div>
