@@ -11,6 +11,7 @@ function BillDetail() {
   const [relatedVotes, setRelatedVotes] = useState([]);
   const [loadingVotes, setLoadingVotes] = useState(false);
   const [allMPs, setAllMPs] = useState([]);
+  const [isLegislativeInfoExpanded, setIsLegislativeInfoExpanded] = useState(false);
 
   useEffect(() => {
     loadBill();
@@ -154,8 +155,14 @@ function BillDetail() {
   };
 
   const getBillTypeDescription = (number) => {
-    if (number.startsWith('C-')) return 'Bills introduced by the government in the House of Commons';
-    if (number.startsWith('S-')) return 'Bills introduced in the Senate';
+    if (number.startsWith('C-')) {
+      const billNum = parseInt(number.substring(2));
+      return billNum <= 200 ? 'Bills introduced by the government in the House of Commons' : 'Bills introduced by private members in the House of Commons';
+    }
+    if (number.startsWith('S-')) {
+      const billNum = parseInt(number.substring(2));
+      return billNum <= 200 ? 'Bills introduced by the government in the Senate' : 'Bills introduced by private members in the Senate';
+    }
     if (number.startsWith('M-')) return 'Motions introduced by private members';
     return 'Other parliamentary business';
   };
@@ -291,11 +298,46 @@ function BillDetail() {
             minWidth: '120px'
           }}>
             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#495057' }}>
-              {session} - {number}
+              {session} - {number?.replace(/\/$/, '')}
             </div>
             <div style={{ fontSize: '12px', color: '#6c757d', marginTop: '5px' }}>
               Bill Number
             </div>
+            {(bill.legis_url || (bill.session && bill.number)) && (
+              <div style={{ marginTop: '10px' }}>
+                <a
+                  href={bill.legis_url || `https://www.parl.ca/legisinfo/en/bill/${bill.session}/${bill.number.toLowerCase()}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    color: '#007bff',
+                    textDecoration: 'none',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    padding: '6px 8px',
+                    backgroundColor: 'white',
+                    borderRadius: '4px',
+                    border: '1px solid #dee2e6',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.backgroundColor = '#e3f2fd';
+                    e.target.style.borderColor = '#90caf9';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.backgroundColor = 'white';
+                    e.target.style.borderColor = '#dee2e6';
+                  }}
+                >
+                  <span style={{ fontSize: '10px' }}>🏛️</span>
+                  LEGISinfo
+                  <span style={{ fontSize: '10px' }}>↗</span>
+                </a>
+              </div>
+            )}
           </div>
         </div>
 
@@ -367,50 +409,55 @@ function BillDetail() {
           marginBottom: '30px',
           boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
         }}>
-          <h2 style={{ margin: '0 0 20px 0', color: '#495057' }}>
-            Legislative Summary
-          </h2>
-          <div style={{
-            fontSize: '16px',
-            lineHeight: '1.6',
-            color: '#333'
-          }}>
-            {bill.legis_summary}
+          <div
+            onClick={() => setIsLegislativeInfoExpanded(!isLegislativeInfoExpanded)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              padding: '5px 0',
+              borderRadius: '4px',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#f8f9fa';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+            }}
+          >
+            <h2 style={{ margin: '0', color: '#495057' }}>
+              Legislative Summary
+            </h2>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              color: '#6c757d',
+              fontSize: '14px'
+            }}>
+              <span>{isLegislativeInfoExpanded ? 'Hide' : 'Show'} Details</span>
+              <span style={{
+                transform: isLegislativeInfoExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s',
+                fontSize: '16px'
+              }}>
+                ▼
+              </span>
+            </div>
           </div>
           
-          {(bill.legis_url || (bill.session && bill.number)) && (
-            <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #e9ecef' }}>
-              <a
-                href={bill.legis_url || `https://www.parl.ca/legisinfo/en/bill/${bill.session}/${bill.number.toLowerCase()}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  color: '#007bff',
-                  textDecoration: 'none',
-                  fontSize: '14px',
-                  fontWeight: '500',
-                  padding: '8px 16px',
-                  backgroundColor: '#f8f9fa',
-                  borderRadius: '6px',
-                  border: '1px solid #dee2e6',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = '#e3f2fd';
-                  e.target.style.borderColor = '#90caf9';
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = '#f8f9fa';
-                  e.target.style.borderColor = '#dee2e6';
-                }}
-              >
-                <span>🏛️</span>
-                View Full Details on LEGISinfo
-                <span style={{ fontSize: '12px' }}>↗</span>
-              </a>
+          {isLegislativeInfoExpanded && (
+            <div style={{
+              marginTop: '20px',
+              paddingTop: '20px',
+              borderTop: '1px solid #e9ecef',
+              fontSize: '16px',
+              lineHeight: '1.6',
+              color: '#333'
+            }}>
+              {bill.legis_summary}
             </div>
           )}
         </div>

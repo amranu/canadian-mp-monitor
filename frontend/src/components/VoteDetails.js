@@ -321,7 +321,7 @@ function VoteDetails() {
                   lineHeight: '1.2',
                   marginBottom: '8px'
                 }}>
-                  {vote.bill_url.replace('/bills/', '').replace('/', ' ').toUpperCase()}
+                  {vote.bill_url.replace('/bills/', '').replace(/\/$/, '').replace('/', ' ').toUpperCase()}
                 </div>
                 {(() => {
                   // Extract bill title from description
