@@ -347,6 +347,33 @@ export const parliamentApi = {
     return data;
   },
 
+  async getMPExpenditures(mpSlug) {
+    const cacheKey = `mp-expenditures-${mpSlug}`;
+    
+    // Check cache first
+    const cachedData = cache.get(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+    
+    const url = `${API_BASE}/politician/${mpSlug}/expenditures`;
+    console.log('Fetching expenditures from:', url);
+    
+    const response = await fetch(url, { headers });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('MP expenditures loaded:', data);
+    
+    // Cache the response
+    cache.set(cacheKey, data);
+    
+    return data;
+  },
+
   // Party-line voting statistics endpoints
   async getPartyLineSummary() {
     const cacheKey = 'party-line-summary';

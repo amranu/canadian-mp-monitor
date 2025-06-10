@@ -107,6 +107,18 @@ function App() {
             >
               openparliament.ca
             </a>
+            {' '}and{' '}
+            <a 
+              href="https://www.ourcommons.ca" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              style={{ 
+                color: '#007bff', 
+                textDecoration: 'none' 
+              }}
+            >
+              ourcommons.ca
+            </a>
           </p>
         </footer>
       </div>

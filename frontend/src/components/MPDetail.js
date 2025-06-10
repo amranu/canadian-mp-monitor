@@ -21,7 +21,7 @@ function MPDetail() {
   const [activeTab, setActiveTab] = useState(() => {
     // Initialize tab from URL params, default to 'votes'
     const tabFromUrl = searchParams.get('tab');
-    return ['votes', 'statistics', 'bills'].includes(tabFromUrl) ? tabFromUrl : 'votes';
+    return ['votes', 'statistics', 'bills', 'expenditures'].includes(tabFromUrl) ? tabFromUrl : 'votes';
   });
   const [selectedSession, setSelectedSession] = useState('all');
   const [availableSessions, setAvailableSessions] = useState([]);
@@ -31,6 +31,8 @@ function MPDetail() {
   const [partyLineLoading, setPartyLineLoading] = useState(false);
   const [partyLineSessions, setPartyLineSessions] = useState(null);
   const [partyLineSessionsLoading, setPartyLineSessionsLoading] = useState(false);
+  const [expenditures, setExpenditures] = useState(null);
+  const [expendituresLoading, setExpendituresLoading] = useState(false);
 
   // Function to update tab and persist to URL
   const updateActiveTab = (newTab) => {
@@ -84,6 +86,13 @@ function MPDetail() {
       loadPartyLineSessions();
     }
   }, []);
+
+  // Load expenditures when expenditures tab is selected
+  useEffect(() => {
+    if (activeTab === 'expenditures' && mpSlug && !expenditures && !expendituresLoading) {
+      loadExpenditures();
+    }
+  }, [activeTab, mpSlug]);
 
   // Extract available sessions from votes
   useEffect(() => {
@@ -464,6 +473,20 @@ function MPDetail() {
       setPartyLineSessions(null);
     } finally {
       setPartyLineSessionsLoading(false);
+    }
+  };
+
+  const loadExpenditures = async () => {
+    try {
+      setExpendituresLoading(true);
+      const data = await parliamentApi.getMPExpenditures(mpSlug);
+      setExpenditures(data);
+      console.log('Expenditures loaded:', data);
+    } catch (error) {
+      console.error('Error loading expenditures:', error);
+      setExpenditures(null);
+    } finally {
+      setExpendituresLoading(false);
     }
   };
 
@@ -1049,6 +1072,33 @@ function MPDetail() {
               📋 Sponsored Bills ({sponsoredBills.length})
             </button>
           )}
+          <button
+            onClick={() => updateActiveTab('expenditures')}
+            style={{
+              padding: '12px 24px',
+              border: 'none',
+              backgroundColor: 'transparent',
+              color: activeTab === 'expenditures' ? '#333' : '#666',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: activeTab === 'expenditures' ? '600' : 'normal',
+              borderBottom: activeTab === 'expenditures' ? '2px solid #333' : '2px solid transparent',
+              marginBottom: '-2px',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              if (activeTab !== 'expenditures') {
+                e.target.style.color = '#333';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeTab !== 'expenditures') {
+                e.target.style.color = '#666';
+              }
+            }}
+          >
+            💰 Expenditures
+          </button>
         </div>
       </div>
 
@@ -1454,6 +1504,173 @@ function MPDetail() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Expenditures Tab */}
+      {activeTab === 'expenditures' && (
+        <div>
+          <div style={{ marginBottom: '30px' }}>
+            <h2 style={{ margin: '0 0 20px 0' }}>
+              {mp.name}'s Expenditures
+            </h2>
+            {expenditures && (
+              <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
+                {expenditures.historical_data ? (
+                  <>
+                    Historical data: {expenditures.years_covered} fiscal years, {expenditures.quarters_covered} quarters | 
+                    Scraped: {new Date(expenditures.scraped_at).toLocaleDateString()}
+                  </>
+                ) : (
+                  <>
+                    Data scraped: {new Date(expenditures.scraped_at).toLocaleDateString()}
+                    {expenditures.raw_response_length && (
+                      <> | Response size: {expenditures.raw_response_length?.toLocaleString()} bytes</>
+                    )}
+                    {expenditures.expenditure_mentions && (
+                      <> | Expenditure mentions: {expenditures.expenditure_mentions}</>
+                    )}
+                  </>
+                )}
+              </p>
+            )}
+          </div>
+
+          {expendituresLoading && (
+            <div style={{ textAlign: 'center', padding: '40px' }}>
+              <div>Loading expenditure data...</div>
+            </div>
+          )}
+
+          {!expendituresLoading && expenditures && expenditures.cached && (
+            <div>
+
+              {/* Quarterly Breakdown */}
+              <div style={{
+                backgroundColor: 'white',
+                padding: '25px',
+                borderRadius: '8px',
+                border: '1px solid #dee2e6',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+              }}>
+                <h3 style={{ margin: '0 0 20px 0', color: '#495057' }}>Quarterly Breakdown</h3>
+                
+                {expenditures.periods && expenditures.periods.length > 0 ? (() => {
+                  // Group periods by fiscal year for better organization
+                  const periodsByFiscalYear = {};
+                  expenditures.periods.forEach(period => {
+                    const fiscalYear = period.fiscal_year || 'Unknown';
+                    if (!periodsByFiscalYear[fiscalYear]) {
+                      periodsByFiscalYear[fiscalYear] = [];
+                    }
+                    periodsByFiscalYear[fiscalYear].push(period);
+                  });
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '25px' }}>
+                      {Object.keys(periodsByFiscalYear)
+                        .sort((a, b) => b - a) // Sort by fiscal year descending
+                        .map(fiscalYear => (
+                          <div key={fiscalYear}>
+                            <h4 style={{ 
+                              margin: '0 0 15px 0', 
+                              color: '#495057',
+                              fontSize: '18px',
+                              borderBottom: '2px solid #007bff',
+                              paddingBottom: '5px'
+                            }}>
+                              Fiscal Year {fiscalYear - 1}-{fiscalYear}
+                            </h4>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                              {periodsByFiscalYear[fiscalYear].map((period, index) => (
+                                <div key={`${fiscalYear}-${index}`} style={{
+                                  border: '1px solid #dee2e6',
+                                  borderRadius: '5px',
+                                  padding: '20px',
+                                  backgroundColor: '#f8f9fa'
+                                }}>
+                                  <h5 style={{ 
+                                    margin: '0 0 15px 0', 
+                                    color: '#495057',
+                                    fontSize: '16px'
+                                  }}>
+                                    {period.period_description || period.period?.split('\n')[0] || `Q${period.quarter || index + 1}`}
+                                  </h5>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px' }}>
+                          <div>
+                            <span style={{ fontSize: '14px', color: '#666' }}>💼 Salaries: </span>
+                            <span style={{ fontWeight: '600' }}>{period.salaries_formatted || '$0'}</span>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '14px', color: '#666' }}>✈️ Travel: </span>
+                            <span style={{ fontWeight: '600' }}>{period.travel_formatted || '$0'}</span>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '14px', color: '#666' }}>🍽️ Hospitality: </span>
+                            <span style={{ fontWeight: '600' }}>{period.hospitality_formatted || '$0'}</span>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '14px', color: '#666' }}>📋 Contracts: </span>
+                            <span style={{ fontWeight: '600' }}>{period.contracts_formatted || '$0'}</span>
+                          </div>
+                        </div>
+                        
+                        <div style={{ marginTop: '10px', textAlign: 'right' }}>
+                          <span style={{ fontSize: '16px', fontWeight: 'bold', color: '#007bff' }}>
+                            Quarter Total: ${(
+                              (period.salaries_amount || 0) + 
+                              (period.travel_amount || 0) + 
+                              (period.hospitality_amount || 0) + 
+                              (period.contracts_amount || 0)
+                            ).toLocaleString()}
+                          </span>
+                                </div>
+                              </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  );
+                })() : (
+                  <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>
+                    <p>No quarterly expenditure data available.</p>
+                  </div>
+                )}
+                
+                <div style={{ marginTop: '20px', textAlign: 'center' }}>
+                  <a 
+                    href="https://www.ourcommons.ca/ProactiveDisclosure/en/members"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      color: '#007bff',
+                      textDecoration: 'none',
+                      fontWeight: '600',
+                      fontSize: '14px'
+                    }}
+                  >
+                    🔗 View detailed reports on House of Commons website
+                  </a>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!expendituresLoading && expenditures && !expenditures.cached && (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+              <h4>Expenditure data not available</h4>
+              <p>{expenditures.message || 'Expenditure data may still be collecting or not available for this MP.'}</p>
+            </div>
+          )}
+
+          {!expendituresLoading && !expenditures && (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+              <h4>No expenditure data found</h4>
+              <p>Unable to retrieve expenditure information for {mp.name}.</p>
+            </div>
+          )}
         </div>
       )}
       </div>
