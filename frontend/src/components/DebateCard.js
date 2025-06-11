@@ -5,9 +5,20 @@ function DebateCard({ debate, onClick, showQuote = false, mpName = null }) {
     if (onClick) {
       onClick();
     } else {
-      // Navigate to OpenParliament.ca debates page by default
-      const debateUrl = `https://openparliament.ca${debate.url}`;
-      window.open(debateUrl, '_blank');
+      // For MP-specific debates with quotes, prefer the speech URL
+      // For general debates, use the debate URL
+      let targetUrl;
+      if (showQuote && debate.speech_url) {
+        targetUrl = `https://openparliament.ca${debate.speech_url}`;
+      } else if (debate.url) {
+        targetUrl = `https://openparliament.ca${debate.url}`;
+      } else {
+        // Fallback for debates without proper URLs
+        console.warn('No valid URL found for debate:', debate);
+        return;
+      }
+      
+      window.open(targetUrl, '_blank');
     }
   };
 
