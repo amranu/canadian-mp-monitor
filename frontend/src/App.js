@@ -69,22 +69,6 @@ function App() {
               >
                 Bills
               </Link>
-              <Link 
-                to="/debates" 
-                style={{ 
-                  color: '#007bff', 
-                  textDecoration: 'none', 
-                  fontSize: '16px',
-                  fontWeight: '500',
-                  padding: '8px 16px',
-                  borderRadius: '4px',
-                  transition: 'background-color 0.2s'
-                }}
-                onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
-                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-              >
-                Debates
-              </Link>
             </nav>
           </div>
         </header>

@@ -1,93 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { parliamentApi } from '../services/parliamentApi';
+import DebateCard from './DebateCard';
 import SEOHead from './SEOHead';
-
-function DebateCard({ debate, onClick }) {
-  const formatDate = (dateStr) => {
-    try {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('en-CA', {
-        year: 'numeric',
-        month: 'long', 
-        day: 'numeric',
-        weekday: 'long'
-      });
-    } catch (e) {
-      return dateStr;
-    }
-  };
-
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        border: '1px solid #e0e0e0',
-        borderRadius: '8px',
-        padding: '20px',
-        backgroundColor: 'white',
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        width: '100%',
-        maxWidth: '500px'
-      }}
-      onMouseEnter={(e) => {
-        e.target.style.transform = 'translateY(-2px)';
-        e.target.style.boxShadow = '0 4px 8px rgba(0,0,0,0.15)';
-        e.target.style.borderColor = '#007bff';
-      }}
-      onMouseLeave={(e) => {
-        e.target.style.transform = 'translateY(0)';
-        e.target.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
-        e.target.style.borderColor = '#e0e0e0';
-      }}
-    >
-      <div style={{ marginBottom: '12px' }}>
-        <h3 style={{ 
-          margin: '0 0 8px 0', 
-          fontSize: '18px', 
-          color: '#333',
-          lineHeight: '1.4'
-        }}>
-          Parliamentary Debate #{debate.number}
-        </h3>
-        <div style={{ 
-          fontSize: '14px', 
-          color: '#666',
-          marginBottom: '8px'
-        }}>
-          {formatDate(debate.date)}
-        </div>
-      </div>
-
-      {debate.most_frequent_word?.en && (
-        <div style={{ marginBottom: '12px' }}>
-          <span style={{ 
-            display: 'inline-block',
-            backgroundColor: '#e3f2fd',
-            color: '#1565c0',
-            padding: '4px 8px',
-            borderRadius: '4px',
-            fontSize: '12px',
-            fontWeight: '500'
-          }}>
-            Key topic: {debate.most_frequent_word.en}
-          </span>
-        </div>
-      )}
-
-      <div style={{ 
-        fontSize: '14px', 
-        color: '#007bff',
-        fontWeight: '500',
-        marginTop: '12px'
-      }}>
-        View debate details →
-      </div>
-    </div>
-  );
-}
 
 function Debates() {
   const navigate = useNavigate();
@@ -190,11 +105,6 @@ function Debates() {
     }
   };
 
-  const handleDebateClick = (debate) => {
-    // Navigate to OpenParliament.ca debates page
-    const debateUrl = `https://openparliament.ca${debate.url}`;
-    window.open(debateUrl, '_blank');
-  };
 
   const debatesJsonLd = {
     "@context": "https://schema.org",
@@ -390,7 +300,6 @@ function Debates() {
             <DebateCard
               key={`${debate.date}-${debate.number}`}
               debate={debate}
-              onClick={() => handleDebateClick(debate)}
             />
           )), [debates])}
         </div>
