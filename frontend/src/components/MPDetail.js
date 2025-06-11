@@ -1287,7 +1287,7 @@ function MPDetail() {
                       fontSize: '14px',
                       color: '#0969da'
                     }}>
-                      📋 <strong>Bill:</strong> {vote.bill_url.replace('/bills/', '').replace('/', ' ')}
+                      📋 <strong>Bill:</strong> {vote.bill_url.replace('/bills/', '').replace('/', ' ').replace(/\/$/, '')}
                     </div>
                   )}
                   
