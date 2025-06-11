@@ -290,6 +290,88 @@ class UnifiedCacheUpdater:
             
         return {'cached_votes': {}, 'updated': datetime.now().isoformat()}, set()
     
+    def check_for_new_votes(self) -> bool:
+        """Check if there are new votes since last cache update and expire caches if needed"""
+        self.logger.info("Checking for new votes to determine if cache expiration is needed...")
+        
+        try:
+            # Get most recent vote from API
+            data = self.api_request(f'{PARLIAMENT_API_BASE}/votes/', {
+                'limit': 1, 'offset': 0
+            })
+            
+            if not data or not data.get('objects'):
+                self.logger.warning("Could not fetch recent votes from API")
+                return False
+                
+            most_recent_api_vote = data['objects'][0]
+            most_recent_api_date = most_recent_api_vote.get('date')
+            
+            if not most_recent_api_date:
+                self.logger.warning("Most recent vote has no date")
+                return False
+            
+            # Check cached votes
+            if os.path.exists(VOTES_CACHE_FILE):
+                try:
+                    with open(VOTES_CACHE_FILE, 'r') as f:
+                        cached_votes = json.load(f)
+                    
+                    if cached_votes:
+                        # Get most recent cached vote
+                        most_recent_cached_vote = cached_votes[0]  # Votes are ordered by recency
+                        most_recent_cached_date = most_recent_cached_vote.get('date')
+                        
+                        if most_recent_cached_date:
+                            # Compare dates
+                            if most_recent_api_date > most_recent_cached_date:
+                                self.logger.info(f"New vote detected! API: {most_recent_api_date}, Cached: {most_recent_cached_date}")
+                                self.logger.info("Expiring vote-related caches due to new vote...")
+                                
+                                # Expire vote-related caches by modifying their timestamps
+                                self._expire_cache_file(VOTES_CACHE_FILE)
+                                self._expire_cache_file(BILLS_CACHE_FILE)  # Bills might have new votes
+                                
+                                # Expire MP votes caches (they contain vote data)
+                                if os.path.exists(MP_VOTES_CACHE_DIR):
+                                    for mp_file in os.listdir(MP_VOTES_CACHE_DIR):
+                                        if mp_file.endswith('.json'):
+                                            mp_cache_path = os.path.join(MP_VOTES_CACHE_DIR, mp_file)
+                                            self._expire_cache_file(mp_cache_path)
+                                
+                                # Expire party line stats (they depend on vote data)
+                                party_line_cache = os.path.join(CACHE_DIR, 'party_line_stats.json')
+                                if os.path.exists(party_line_cache):
+                                    self._expire_cache_file(party_line_cache)
+                                
+                                return True
+                            else:
+                                self.logger.info(f"No new votes found. API: {most_recent_api_date}, Cached: {most_recent_cached_date}")
+                        else:
+                            self.logger.warning("Cached vote has no date, cannot compare")
+                    else:
+                        self.logger.info("No cached votes found, will update normally")
+                except Exception as e:
+                    self.logger.warning(f"Error reading cached votes: {e}")
+            else:
+                self.logger.info("No votes cache file exists, will update normally")
+                
+        except Exception as e:
+            self.logger.error(f"Error checking for new votes: {e}")
+            
+        return False
+    
+    def _expire_cache_file(self, cache_file: str):
+        """Expire a cache file by setting its modification time to a very old date"""
+        try:
+            if os.path.exists(cache_file):
+                # Set modification time to 1 week ago to ensure it's considered expired
+                old_time = time.time() - (7 * 24 * 60 * 60)
+                os.utime(cache_file, (old_time, old_time))
+                self.logger.info(f"Expired cache file: {os.path.basename(cache_file)}")
+        except Exception as e:
+            self.logger.warning(f"Could not expire cache file {cache_file}: {e}")
+    
     def update_votes_cache(self) -> bool:
         """Update recent votes cache"""
         self.log_operation("Votes Cache", "STARTED")
@@ -1056,6 +1138,11 @@ class UnifiedCacheUpdater:
     def run_auto_mode(self, max_mps=None):
         """Run automatic cache updates based on expiration"""
         self.logger.info("Starting unified cache update (AUTO mode)")
+        
+        # First check for new votes and expire related caches if needed
+        new_votes_detected = self.check_for_new_votes()
+        if new_votes_detected:
+            self.logger.info("New votes detected - proceeding with cache updates")
         
         # Update in optimal order (dependencies first)
         self.update_politicians_cache()
