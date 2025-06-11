@@ -111,17 +111,45 @@ function DebateCard({ debate, onClick, showQuote = false, mpName = null }) {
           gap: '10px',
           flexWrap: 'wrap'
         }}>
-          <div style={{
-            padding: '4px 8px',
-            backgroundColor: getDebateColor(),
-            color: 'white',
-            borderRadius: '4px',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            whiteSpace: 'nowrap',
-            flexShrink: 0
-          }}>
-            {getDebateTypeLabel()}
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{
+              padding: '4px 8px',
+              backgroundColor: getDebateColor(),
+              color: 'white',
+              borderRadius: '4px',
+              fontSize: '12px',
+              fontWeight: 'bold',
+              whiteSpace: 'nowrap',
+              flexShrink: 0
+            }}>
+              {getDebateTypeLabel()}
+            </div>
+            {debate.debate_category && debate.debate_category !== 'Parliamentary Business' && (
+              <span style={{ 
+                display: 'inline-block',
+                backgroundColor: '#e8f5e8',
+                color: '#2e7d32',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                fontWeight: '500'
+              }}>
+                {debate.debate_category}
+              </span>
+            )}
+            {debate.procedural && (
+              <span style={{ 
+                display: 'inline-block',
+                backgroundColor: '#fff3cd',
+                color: '#856404',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                fontWeight: '500'
+              }}>
+                Procedural
+              </span>
+            )}
           </div>
           <div style={{
             fontSize: '14px',
@@ -188,48 +216,20 @@ function DebateCard({ debate, onClick, showQuote = false, mpName = null }) {
           </div>
         )}
 
-        {/* Topic/Category Tags */}
-        {(debate.most_frequent_word?.en || debate.debate_category) && (
-          <div style={{ marginBottom: '12px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-            {debate.most_frequent_word?.en && (
-              <span style={{ 
-                display: 'inline-block',
-                backgroundColor: '#e3f2fd',
-                color: '#1565c0',
-                padding: '4px 8px',
-                borderRadius: '4px',
-                fontSize: '12px',
-                fontWeight: '500'
-              }}>
-                Key topic: {debate.most_frequent_word.en}
-              </span>
-            )}
-            {debate.debate_category && debate.debate_category !== 'Parliamentary Business' && (
-              <span style={{ 
-                display: 'inline-block',
-                backgroundColor: '#e8f5e8',
-                color: '#2e7d32',
-                padding: '4px 8px',
-                borderRadius: '4px',
-                fontSize: '12px',
-                fontWeight: '500'
-              }}>
-                {debate.debate_category}
-              </span>
-            )}
-            {debate.procedural && (
-              <span style={{ 
-                display: 'inline-block',
-                backgroundColor: '#fff3cd',
-                color: '#856404',
-                padding: '4px 8px',
-                borderRadius: '4px',
-                fontSize: '12px',
-                fontWeight: '500'
-              }}>
-                Procedural
-              </span>
-            )}
+        {/* Key Topic Tag (if available) */}
+        {debate.most_frequent_word?.en && (
+          <div style={{ marginBottom: '12px' }}>
+            <span style={{ 
+              display: 'inline-block',
+              backgroundColor: '#e3f2fd',
+              color: '#1565c0',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              fontSize: '12px',
+              fontWeight: '500'
+            }}>
+              Key topic: {debate.most_frequent_word.en}
+            </span>
           </div>
         )}
       </div>
