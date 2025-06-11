@@ -9,10 +9,21 @@ function MPList() {
   const [filteredMPs, setFilteredMPs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [loadedImages, setLoadedImages] = useState(new Set());
+  const [allImagesLoaded, setAllImagesLoaded] = useState(false);
 
   useEffect(() => {
     loadAllMPs();
   }, []);
+
+  useEffect(() => {
+    if (filteredMPs.length === 0) return;
+    
+    const mpsWithImages = filteredMPs.filter(mp => mp.image);
+    const allImagesReady = mpsWithImages.every(mp => loadedImages.has(mp.url));
+    
+    setAllImagesLoaded(allImagesReady);
+  }, [filteredMPs, loadedImages]);
 
   const loadAllMPs = async () => {
     try {
@@ -72,6 +83,10 @@ function MPList() {
   const clearSearch = () => {
     setSearchQuery('');
     setFilteredMPs(allMPs);
+  };
+
+  const handleImageLoad = (mpUrl) => {
+    setLoadedImages(prev => new Set([...prev, mpUrl]));
   };
 
   const mpJsonLd = {
@@ -147,8 +162,9 @@ function MPList() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
-        {filteredMPs.map((mp) => (
+      {allImagesLoaded && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
+          {filteredMPs.map((mp) => (
           <div 
             key={mp.url} 
             onClick={() => {
@@ -172,6 +188,7 @@ function MPList() {
                 <img 
                   src={`/api/images/${mp.url.replace('/politicians/', '').replace('/', '')}`}
                   alt={mp.name}
+                  onLoad={() => handleImageLoad(mp.url)}
                   style={{ 
                     width: '60px', 
                     height: '60px', 
@@ -191,8 +208,29 @@ function MPList() {
               </div>
             </div>
           </div>
-        ))}
+          ))}
+        </div>
+      )}
+
+      {/* Hidden images to preload */}
+      <div style={{ display: 'none' }}>
+        {filteredMPs
+          .filter(mp => mp.image)
+          .map((mp) => (
+            <img 
+              key={`preload-${mp.url}`}
+              src={`/api/images/${mp.url.replace('/politicians/', '').replace('/', '')}`}
+              alt=""
+              onLoad={() => handleImageLoad(mp.url)}
+            />
+          ))}
       </div>
+
+      {!loading && !allImagesLoaded && filteredMPs.length > 0 && (
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          Loading MP images...
+        </div>
+      )}
 
       {loading && (
         <div style={{ textAlign: 'center', padding: '20px' }}>
