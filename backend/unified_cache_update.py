@@ -305,13 +305,13 @@ class UnifiedCacheUpdater:
         return {'cached_votes': {}, 'updated': datetime.now().isoformat()}, set()
     
     def check_for_new_votes(self) -> bool:
-        """Check if there are new votes since last cache update and expire caches if needed"""
-        self.logger.info("Checking for new votes to determine if cache expiration is needed...")
+        """Check if there are new votes since last cache update and handle them incrementally"""
+        self.logger.info("Checking for new votes to determine if incremental updates are needed...")
         
         try:
             # Get most recent votes from API (get more than 1 to be safe)
             data = self.api_request(f'{PARLIAMENT_API_BASE}/votes/', {
-                'limit': 5, 'offset': 0
+                'limit': 10, 'offset': 0  # Check more votes to be thorough
             })
             
             if not data or not data.get('objects'):
@@ -321,18 +321,18 @@ class UnifiedCacheUpdater:
             api_votes = data['objects']
             self.logger.info(f"Fetched {len(api_votes)} recent votes from API")
             
-            # Get vote IDs and URLs from API
-            api_vote_ids = set()
+            # Get vote IDs and full vote objects from API
+            api_vote_data = {}
             for vote in api_votes:
                 vote_url = vote.get('url', '')
                 if vote_url:
                     # Extract vote ID from URL (e.g., /votes/44-1/451/ -> 44-1_451)
                     vote_id = vote_url.replace('/votes/', '').replace('/', '_').rstrip('_')
                     if vote_id:
-                        api_vote_ids.add(vote_id)
+                        api_vote_data[vote_id] = vote
                         self.logger.debug(f"API vote ID: {vote_id}, Date: {vote.get('date')}")
             
-            if not api_vote_ids:
+            if not api_vote_data:
                 self.logger.warning("No valid vote IDs found in API response")
                 return False
             
@@ -341,7 +341,10 @@ class UnifiedCacheUpdater:
             if os.path.exists(VOTES_CACHE_FILE):
                 try:
                     with open(VOTES_CACHE_FILE, 'r') as f:
-                        cached_votes = json.load(f)
+                        cached_votes_data = json.load(f)
+                    
+                    # Handle both old format (direct list) and new format (with data wrapper)
+                    cached_votes = cached_votes_data.get('data', cached_votes_data) if isinstance(cached_votes_data, dict) else cached_votes_data
                     
                     if cached_votes:
                         for vote in cached_votes:
@@ -360,39 +363,255 @@ class UnifiedCacheUpdater:
                     self.logger.warning(f"Error reading cached votes: {e}")
             
             # Check if there are any new vote IDs in API that aren't in cache
-            new_vote_ids = api_vote_ids - cached_vote_ids
+            new_vote_ids = set(api_vote_data.keys()) - cached_vote_ids
             
             if new_vote_ids:
                 self.logger.info(f"New votes detected! Found {len(new_vote_ids)} new vote(s): {', '.join(new_vote_ids)}")
-                self.logger.info("Expiring vote-related caches due to new votes...")
                 
-                # Expire vote-related caches by modifying their timestamps
-                self._expire_cache_file(VOTES_CACHE_FILE)
-                self._expire_cache_file(BILLS_CACHE_FILE)  # Bills might have new votes
+                # Process new votes incrementally instead of expiring all caches
+                success = self._process_new_votes_incrementally(new_vote_ids, api_vote_data)
                 
-                # Expire MP votes caches (they contain vote data)
-                if os.path.exists(MP_VOTES_CACHE_DIR):
-                    expired_count = 0
-                    for mp_file in os.listdir(MP_VOTES_CACHE_DIR):
-                        if mp_file.endswith('.json'):
-                            mp_cache_path = os.path.join(MP_VOTES_CACHE_DIR, mp_file)
-                            self._expire_cache_file(mp_cache_path)
-                            expired_count += 1
-                    self.logger.info(f"Expired {expired_count} MP voting record caches")
-                
-                # Expire party line stats (they depend on vote data)
-                party_line_cache = os.path.join(CACHE_DIR, 'party_line_stats.json')
-                if os.path.exists(party_line_cache):
-                    self._expire_cache_file(party_line_cache)
-                
-                return True
+                if success:
+                    self.logger.info("Successfully processed new votes incrementally")
+                    
+                    # Only expire party line stats (they need recalculation with new votes)
+                    party_line_cache = os.path.join(CACHE_DIR, 'party_line_stats.json')
+                    if os.path.exists(party_line_cache):
+                        self._expire_cache_file(party_line_cache)
+                        self.logger.info("Expired party line stats cache for recalculation")
+                    
+                    return True
+                else:
+                    self.logger.warning("Incremental processing failed, falling back to full cache expiration")
+                    # Fallback to old behavior if incremental processing fails
+                    return self._expire_all_vote_caches(new_vote_ids)
             else:
-                self.logger.info(f"No new votes found. API has {len(api_vote_ids)} votes, all present in cache")
+                self.logger.info(f"No new votes found. API has {len(api_vote_data)} votes, all present in cache")
                 
         except Exception as e:
             self.logger.error(f"Error checking for new votes: {e}")
             
         return False
+    
+    def _process_new_votes_incrementally(self, new_vote_ids: set, api_vote_data: dict) -> bool:
+        """Process new votes incrementally by adding them to existing caches"""
+        try:
+            self.logger.info(f"Processing {len(new_vote_ids)} new votes incrementally...")
+            
+            # 1. Add new votes to the main votes cache
+            if not self._add_votes_to_cache(new_vote_ids, api_vote_data):
+                return False
+            
+            # 2. Cache vote details for new votes
+            if not self._cache_new_vote_details(new_vote_ids, api_vote_data):
+                return False
+            
+            # 3. Update MP voting records with new votes
+            if not self._update_mp_records_with_new_votes(new_vote_ids):
+                return False
+            
+            # 4. Update bills cache if any new votes are related to bills
+            self._update_bills_cache_for_new_votes(new_vote_ids, api_vote_data)
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error in incremental vote processing: {e}")
+            return False
+    
+    def _add_votes_to_cache(self, new_vote_ids: set, api_vote_data: dict) -> bool:
+        """Add new votes to the main votes cache file"""
+        try:
+            # Load existing votes cache
+            existing_votes = []
+            if os.path.exists(VOTES_CACHE_FILE):
+                with open(VOTES_CACHE_FILE, 'r') as f:
+                    cached_data = json.load(f)
+                existing_votes = cached_data.get('data', cached_data) if isinstance(cached_data, dict) else cached_data
+            
+            # Add new votes to the beginning (most recent first)
+            new_votes = [api_vote_data[vote_id] for vote_id in new_vote_ids]
+            updated_votes = new_votes + existing_votes
+            
+            # Limit total votes to prevent cache from growing too large
+            max_votes = 200
+            if len(updated_votes) > max_votes:
+                updated_votes = updated_votes[:max_votes]
+                self.logger.info(f"Trimmed votes cache to {max_votes} most recent votes")
+            
+            # Save updated votes cache
+            return self.save_cache_data(updated_votes, VOTES_CACHE_FILE, 'votes')
+            
+        except Exception as e:
+            self.logger.error(f"Error adding votes to cache: {e}")
+            return False
+    
+    def _cache_new_vote_details(self, new_vote_ids: set, api_vote_data: dict) -> bool:
+        """Cache detailed information for new votes"""
+        try:
+            successful_caches = 0
+            
+            for vote_id in new_vote_ids:
+                vote = api_vote_data[vote_id]
+                
+                # Cache the vote details
+                if self._cache_single_vote_details(vote_id, vote):
+                    successful_caches += 1
+                    
+                    # Update vote cache index
+                    self._update_vote_cache_index(vote_id, vote)
+                    
+                    # Small delay to be respectful to API
+                    time.sleep(0.2)
+            
+            self.logger.info(f"Successfully cached details for {successful_caches}/{len(new_vote_ids)} new votes")
+            return successful_caches > 0
+            
+        except Exception as e:
+            self.logger.error(f"Error caching new vote details: {e}")
+            return False
+    
+    def _update_vote_cache_index(self, vote_id: str, vote: dict):
+        """Update the vote cache index with new vote"""
+        try:
+            index_data = {}
+            if os.path.exists(VOTE_CACHE_INDEX_FILE):
+                with open(VOTE_CACHE_INDEX_FILE, 'r') as f:
+                    index_data = json.load(f)
+            
+            if 'cached_votes' not in index_data:
+                index_data['cached_votes'] = {}
+            
+            index_data['cached_votes'][vote_id] = {
+                'url': vote['url'],
+                'date': vote.get('date'),
+                'cached_at': datetime.now().isoformat()
+            }
+            
+            index_data['updated'] = datetime.now().isoformat()
+            index_data['total_cached'] = len(index_data['cached_votes'])
+            
+            with open(VOTE_CACHE_INDEX_FILE, 'w') as f:
+                json.dump(index_data, f, indent=2)
+                
+        except Exception as e:
+            self.logger.warning(f"Error updating vote cache index: {e}")
+    
+    def _update_mp_records_with_new_votes(self, new_vote_ids: set) -> bool:
+        """Update MP voting records by adding new votes incrementally"""
+        try:
+            if not os.path.exists(MP_VOTES_CACHE_DIR):
+                return True  # No existing MP records to update
+            
+            updated_count = 0
+            mp_files = [f for f in os.listdir(MP_VOTES_CACHE_DIR) if f.endswith('.json')]
+            
+            self.logger.info(f"Updating {len(mp_files)} MP voting records with new votes...")
+            
+            for mp_file in mp_files:
+                mp_slug = mp_file.replace('.json', '')
+                mp_cache_path = os.path.join(MP_VOTES_CACHE_DIR, mp_file)
+                
+                try:
+                    # Load existing MP votes
+                    with open(mp_cache_path, 'r') as f:
+                        mp_data = json.load(f)
+                    
+                    existing_votes = mp_data.get('data', [])
+                    mp_url = f'/politicians/{mp_slug}/'
+                    
+                    # Find new votes where this MP participated
+                    new_mp_votes = []
+                    for vote_id in new_vote_ids:
+                        vote_details_file = os.path.join(VOTE_DETAILS_CACHE_DIR, f'{vote_id}.json')
+                        if os.path.exists(vote_details_file):
+                            with open(vote_details_file, 'r') as f:
+                                vote_data = json.load(f)
+                            
+                            vote_info = vote_data.get('vote', {})
+                            ballots = vote_data.get('ballots', [])
+                            
+                            # Find this MP's ballot
+                            for ballot in ballots:
+                                if ballot.get('politician_url') == mp_url:
+                                    vote_record = vote_info.copy()
+                                    vote_record['mp_ballot'] = ballot.get('ballot')
+                                    new_mp_votes.append(vote_record)
+                                    break
+                    
+                    if new_mp_votes:
+                        # Add new votes to the beginning (most recent first)
+                        updated_votes = new_mp_votes + existing_votes
+                        
+                        # Limit to prevent excessive growth
+                        max_votes = 5000
+                        if len(updated_votes) > max_votes:
+                            updated_votes = updated_votes[:max_votes]
+                        
+                        # Save updated MP votes
+                        mp_data['data'] = updated_votes
+                        mp_data['updated'] = datetime.now().isoformat()
+                        mp_data['count'] = len(updated_votes)
+                        
+                        with open(mp_cache_path, 'w') as f:
+                            json.dump(mp_data, f, indent=2)
+                        
+                        updated_count += 1
+                        self.logger.debug(f"Added {len(new_mp_votes)} new votes for MP: {mp_slug}")
+                
+                except Exception as e:
+                    self.logger.warning(f"Error updating MP votes for {mp_slug}: {e}")
+                    continue
+            
+            self.logger.info(f"Successfully updated {updated_count} MP voting records with new votes")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error updating MP records with new votes: {e}")
+            return False
+    
+    def _update_bills_cache_for_new_votes(self, new_vote_ids: set, api_vote_data: dict):
+        """Update bills cache index if any new votes are related to bills"""
+        try:
+            # Check if any new votes are related to bills
+            bills_affected = False
+            for vote_id in new_vote_ids:
+                vote = api_vote_data[vote_id]
+                if vote.get('bill_url'):
+                    bills_affected = True
+                    break
+            
+            if bills_affected:
+                self.logger.info("New votes affect bills, updating bills with votes index...")
+                self._build_bills_with_votes_index()
+            
+        except Exception as e:
+            self.logger.warning(f"Error updating bills cache for new votes: {e}")
+    
+    def _expire_all_vote_caches(self, new_vote_ids: set) -> bool:
+        """Fallback method: expire all vote-related caches (original behavior)"""
+        self.logger.info("Using fallback: expiring all vote-related caches...")
+        
+        # Expire vote-related caches by modifying their timestamps
+        self._expire_cache_file(VOTES_CACHE_FILE)
+        self._expire_cache_file(BILLS_CACHE_FILE)  # Bills might have new votes
+        
+        # Expire MP votes caches (they contain vote data)
+        if os.path.exists(MP_VOTES_CACHE_DIR):
+            expired_count = 0
+            for mp_file in os.listdir(MP_VOTES_CACHE_DIR):
+                if mp_file.endswith('.json'):
+                    mp_cache_path = os.path.join(MP_VOTES_CACHE_DIR, mp_file)
+                    self._expire_cache_file(mp_cache_path)
+                    expired_count += 1
+            self.logger.info(f"Expired {expired_count} MP voting record caches")
+        
+        # Expire party line stats (they depend on vote data)
+        party_line_cache = os.path.join(CACHE_DIR, 'party_line_stats.json')
+        if os.path.exists(party_line_cache):
+            self._expire_cache_file(party_line_cache)
+        
+        return True
     
     def _expire_cache_file(self, cache_file: str):
         """Expire a cache file by updating its expires timestamp in JSON content"""

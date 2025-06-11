@@ -303,6 +303,52 @@ function VoteDetails() {
               <span><strong>Vote #{vote.number}</strong></span>
             </div>
             
+            {/* Our Commons Vote Link */}
+            {vote.session && vote.number && (() => {
+              // Parse session (e.g., "45-1" -> "45" and "1")
+              const sessionParts = vote.session.split('-');
+              if (sessionParts.length === 2) {
+                const parliament = sessionParts[0];
+                const session = sessionParts[1];
+                const ourCommonsUrl = `https://www.ourcommons.ca/members/en/votes/${parliament}/${session}/${vote.number}`;
+                
+                return (
+                  <div style={{ marginTop: '12px' }}>
+                    <a
+                      href={ourCommonsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '8px 12px',
+                        backgroundColor: '#f8f9fa',
+                        color: '#0969da',
+                        border: '1px solid #0969da',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        fontWeight: '500',
+                        textDecoration: 'none',
+                        transition: 'all 0.2s'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = '#e3f2fd';
+                        e.target.style.borderColor = '#0550ae';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = '#f8f9fa';
+                        e.target.style.borderColor = '#0969da';
+                      }}
+                    >
+                      🏛️ View on House of Commons ↗
+                    </a>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+            
             {vote.bill_url && (
               <div style={{ 
                 marginTop: '15px',
