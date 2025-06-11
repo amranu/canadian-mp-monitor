@@ -267,49 +267,6 @@ function DebateCard({ debate, onClick, showQuote = false, mpName = null }) {
           )}
         </div>
 
-        {/* External link */}
-        <div style={{
-          paddingTop: '10px',
-          borderTop: '1px solid #e9ecef',
-          display: 'flex',
-          gap: '6px',
-          flexWrap: 'wrap'
-        }}>
-          <a
-            href={showQuote && debate.speech_url 
-              ? `https://openparliament.ca${debate.speech_url}` 
-              : `https://openparliament.ca${debate.url}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '4px',
-              color: '#007bff',
-              textDecoration: 'none',
-              fontSize: '11px',
-              fontWeight: '500',
-              padding: '3px 6px',
-              backgroundColor: '#f8f9fa',
-              borderRadius: '3px',
-              border: '1px solid #dee2e6',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#e3f2fd';
-              e.currentTarget.style.borderColor = '#90caf9';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#f8f9fa';
-              e.currentTarget.style.borderColor = '#dee2e6';
-            }}
-          >
-            <span>🗣️</span>
-            {showQuote ? 'View Speech' : 'View Debate'}
-            <span style={{ fontSize: '9px' }}>↗</span>
-          </a>
-        </div>
       </div>
     </div>
   );
