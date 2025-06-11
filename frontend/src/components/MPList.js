@@ -226,6 +226,12 @@ function MPList() {
           ))}
       </div>
 
+      {!loading && !allImagesLoaded && filteredMPs.length > 0 && (
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          Loading MPs... This may take a moment.
+        </div>
+      )}
+
       {loading && (
         <div style={{ textAlign: 'center', padding: '20px' }}>
           Loading MPs... This may take a moment.
