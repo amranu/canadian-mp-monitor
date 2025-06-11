@@ -1,6 +1,6 @@
 import React from 'react';
 
-function DebateCard({ debate, onClick }) {
+function DebateCard({ debate, onClick, showQuote = false, mpName = null }) {
   const handleClick = () => {
     if (onClick) {
       onClick();
@@ -132,10 +132,10 @@ function DebateCard({ debate, onClick }) {
           wordBreak: 'break-word',
           overflow: 'hidden',
           display: '-webkit-box',
-          WebkitLineClamp: 2,
+          WebkitLineClamp: showQuote ? 1 : 2,
           WebkitBoxOrient: 'vertical'
         }}>
-          Parliamentary Debate #{debate.number}
+          {debate.debate_title || `Parliamentary Debate #${debate.number}`}
         </h3>
 
         <p style={{
@@ -147,19 +147,78 @@ function DebateCard({ debate, onClick }) {
           {formatDate(debate.date)}
         </p>
 
-        {debate.most_frequent_word?.en && (
-          <div style={{ marginBottom: '12px' }}>
-            <span style={{ 
-              display: 'inline-block',
-              backgroundColor: '#e3f2fd',
-              color: '#1565c0',
-              padding: '4px 8px',
-              borderRadius: '4px',
-              fontSize: '12px',
-              fontWeight: '500'
+        {/* MP Quote Section */}
+        {showQuote && debate.content_preview && (
+          <div style={{
+            backgroundColor: '#f8f9fa',
+            padding: '12px',
+            borderRadius: '4px',
+            marginBottom: '12px',
+            border: '1px solid #e9ecef'
+          }}>
+            <div style={{
+              fontSize: '13px',
+              color: '#495057',
+              fontStyle: 'italic',
+              lineHeight: '1.4',
+              marginBottom: '8px'
             }}>
-              Key topic: {debate.most_frequent_word.en}
-            </span>
+              "{debate.content_preview}..."
+            </div>
+            {mpName && (
+              <div style={{
+                fontSize: '12px',
+                color: '#6c757d',
+                fontWeight: '500'
+              }}>
+                — {mpName}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Topic/Category Tags */}
+        {(debate.most_frequent_word?.en || debate.debate_category) && (
+          <div style={{ marginBottom: '12px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {debate.most_frequent_word?.en && (
+              <span style={{ 
+                display: 'inline-block',
+                backgroundColor: '#e3f2fd',
+                color: '#1565c0',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                fontWeight: '500'
+              }}>
+                Key topic: {debate.most_frequent_word.en}
+              </span>
+            )}
+            {debate.debate_category && debate.debate_category !== 'Parliamentary Business' && (
+              <span style={{ 
+                display: 'inline-block',
+                backgroundColor: '#e8f5e8',
+                color: '#2e7d32',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                fontWeight: '500'
+              }}>
+                {debate.debate_category}
+              </span>
+            )}
+            {debate.procedural && (
+              <span style={{ 
+                display: 'inline-block',
+                backgroundColor: '#fff3cd',
+                color: '#856404',
+                padding: '4px 8px',
+                borderRadius: '4px',
+                fontSize: '12px',
+                fontWeight: '500'
+              }}>
+                Procedural
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -179,12 +238,21 @@ function DebateCard({ debate, onClick }) {
           <span style={{ minWidth: 0 }}>
             <strong>Date:</strong> {formatShortDate(debate.date)}
           </span>
-          <span style={{ 
-            whiteSpace: 'nowrap',
-            flexShrink: 0
-          }}>
-            <strong>Debate:</strong> #{debate.number}
-          </span>
+          {showQuote && debate.speaking_time ? (
+            <span style={{ 
+              whiteSpace: 'nowrap',
+              flexShrink: 0
+            }}>
+              <strong>~{Math.round(debate.speaking_time / 5)} words</strong>
+            </span>
+          ) : (
+            <span style={{ 
+              whiteSpace: 'nowrap',
+              flexShrink: 0
+            }}>
+              <strong>Debate:</strong> #{debate.number}
+            </span>
+          )}
         </div>
 
         {/* External link */}
@@ -196,7 +264,9 @@ function DebateCard({ debate, onClick }) {
           flexWrap: 'wrap'
         }}>
           <a
-            href={`https://openparliament.ca${debate.url}`}
+            href={showQuote && debate.speech_url 
+              ? `https://openparliament.ca${debate.speech_url}` 
+              : `https://openparliament.ca${debate.url}`}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => e.stopPropagation()}
@@ -224,7 +294,7 @@ function DebateCard({ debate, onClick }) {
             }}
           >
             <span>🗣️</span>
-            View Debate
+            {showQuote ? 'View Speech' : 'View Debate'}
             <span style={{ fontSize: '9px' }}>↗</span>
           </a>
         </div>

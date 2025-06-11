@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { parliamentApi } from '../services/parliamentApi';
 import BillCard from './BillCard';
+import DebateCard from './DebateCard';
 import SEOHead from './SEOHead';
 
 function MPDetail() {
@@ -1591,104 +1592,33 @@ function MPDetail() {
 
           {!debatesLoading && debates && debates.debates && debates.debates.length > 0 && (
             <div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div 
+                style={{ 
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-start',
+                  gap: '20px',
+                  width: '100%'
+                }}
+                className="mp-debates-grid"
+              >
+                <style>{`
+                  @media (min-width: 769px) {
+                    .mp-debates-grid {
+                      display: grid !important;
+                      grid-template-columns: repeat(auto-fill, 400px) !important;
+                      justify-content: start !important;
+                      gap: 20px !important;
+                    }
+                  }
+                `}</style>
                 {debates.debates.map((debate, index) => (
-                  <div 
-                    key={index}
-                    style={{
-                      border: '1px solid #ddd',
-                      borderRadius: '8px',
-                      padding: '20px',
-                      backgroundColor: 'white',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                    }}
-                  >
-                    <div style={{ marginBottom: '15px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
-                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                          <div style={{ 
-                            padding: '4px 8px', 
-                            backgroundColor: '#e9ecef', 
-                            borderRadius: '4px', 
-                            fontSize: '12px',
-                            fontWeight: 'bold',
-                            color: '#495057'
-                          }}>
-                            Parliamentary Debate
-                          </div>
-                          
-                          {debate.procedural && (
-                            <div style={{ 
-                              padding: '4px 8px', 
-                              backgroundColor: '#fff3cd', 
-                              borderRadius: '4px', 
-                              fontSize: '12px',
-                              fontWeight: 'bold',
-                              color: '#856404'
-                            }}>
-                              Procedural
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div style={{ 
-                          fontSize: '14px', 
-                          color: '#666',
-                          fontWeight: '500'
-                        }}>
-                          📅 {debate.date}
-                        </div>
-                      </div>
-                      
-                      <div style={{ marginBottom: '15px' }}>
-                        <h4 style={{ 
-                          margin: '0 0 10px 0', 
-                          fontSize: '16px', 
-                          color: '#333',
-                          fontWeight: '600'
-                        }}>
-                          Debate Participation
-                        </h4>
-                        
-                        {debate.content_preview && (
-                          <div style={{ 
-                            backgroundColor: '#f8f9fa',
-                            padding: '12px',
-                            borderRadius: '4px',
-                            fontSize: '14px',
-                            color: '#495057',
-                            fontStyle: 'italic',
-                            lineHeight: '1.4'
-                          }}>
-                            "{debate.content_preview}..."
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div style={{ 
-                        display: 'flex', 
-                        justifyContent: 'space-between', 
-                        alignItems: 'center',
-                        flexWrap: 'wrap',
-                        gap: '10px'
-                      }}>
-                        <div style={{ 
-                          fontSize: '13px', 
-                          color: '#666',
-                          display: 'flex',
-                          gap: '15px',
-                          flexWrap: 'wrap'
-                        }}>
-                          {debate.speaking_time && (
-                            <span><strong>💬 Approx. words:</strong> {Math.round(debate.speaking_time / 5)}</span>
-                          )}
-                          {debate.debate_url && (
-                            <span><strong>🔗 Debate URL:</strong> {debate.debate_url.replace('/debates/', '').replace(/\/$/, '')}</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <DebateCard
+                    key={`${debate.date}-${index}`}
+                    debate={debate}
+                    showQuote={true}
+                    mpName={mp.name}
+                  />
                 ))}
               </div>
               
