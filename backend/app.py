@@ -105,7 +105,7 @@ def hello():
             'images': {
                 'total_cached': images_count,
                 'valid_cached': valid_images_count,
-                'cache_duration_hours': 1
+                'cache_duration_hours': 720  # 30 days
             }
         },
         'cache_duration_hours': CACHE_DURATION / 3600
@@ -2028,13 +2028,13 @@ def serve_mp_image(mp_slug):
         # Check memory cache first
         if mp_slug in cache['images']:
             cached_image = cache['images'][mp_slug]
-            # Check if cache is still valid (cache for 1 hour)
+            # Check if cache is still valid (cache for 1 month)
             if time.time() < cached_image['expires']:
                 from flask import Response
                 return Response(
                     cached_image['data'], 
                     mimetype=cached_image['mimetype'],
-                    headers={'Cache-Control': 'public, max-age=3600'}
+                    headers={'Cache-Control': 'public, max-age=2592000'}
                 )
         
         # Not in memory cache, look for image file with various extensions
@@ -2046,7 +2046,7 @@ def serve_mp_image(mp_slug):
                     image_data = f.read()
                 
                 mimetype = f'image/{ext}'
-                expires = time.time() + 3600  # Cache for 1 hour
+                expires = time.time() + 2592000  # Cache for 1 month (30 days)
                 
                 # Store in memory cache
                 cache['images'][mp_slug] = {

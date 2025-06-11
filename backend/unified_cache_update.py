@@ -295,66 +295,81 @@ class UnifiedCacheUpdater:
         self.logger.info("Checking for new votes to determine if cache expiration is needed...")
         
         try:
-            # Get most recent vote from API
+            # Get most recent votes from API (get more than 1 to be safe)
             data = self.api_request(f'{PARLIAMENT_API_BASE}/votes/', {
-                'limit': 1, 'offset': 0
+                'limit': 5, 'offset': 0
             })
             
             if not data or not data.get('objects'):
                 self.logger.warning("Could not fetch recent votes from API")
                 return False
                 
-            most_recent_api_vote = data['objects'][0]
-            most_recent_api_date = most_recent_api_vote.get('date')
+            api_votes = data['objects']
+            self.logger.info(f"Fetched {len(api_votes)} recent votes from API")
             
-            if not most_recent_api_date:
-                self.logger.warning("Most recent vote has no date")
+            # Get vote IDs and URLs from API
+            api_vote_ids = set()
+            for vote in api_votes:
+                vote_url = vote.get('url', '')
+                if vote_url:
+                    # Extract vote ID from URL (e.g., /votes/44-1/451/ -> 44-1_451)
+                    vote_id = vote_url.replace('/votes/', '').replace('/', '_').rstrip('_')
+                    if vote_id:
+                        api_vote_ids.add(vote_id)
+                        self.logger.debug(f"API vote ID: {vote_id}, Date: {vote.get('date')}")
+            
+            if not api_vote_ids:
+                self.logger.warning("No valid vote IDs found in API response")
                 return False
             
             # Check cached votes
+            cached_vote_ids = set()
             if os.path.exists(VOTES_CACHE_FILE):
                 try:
                     with open(VOTES_CACHE_FILE, 'r') as f:
                         cached_votes = json.load(f)
                     
                     if cached_votes:
-                        # Get most recent cached vote
-                        most_recent_cached_vote = cached_votes[0]  # Votes are ordered by recency
-                        most_recent_cached_date = most_recent_cached_vote.get('date')
-                        
-                        if most_recent_cached_date:
-                            # Compare dates
-                            if most_recent_api_date > most_recent_cached_date:
-                                self.logger.info(f"New vote detected! API: {most_recent_api_date}, Cached: {most_recent_cached_date}")
-                                self.logger.info("Expiring vote-related caches due to new vote...")
-                                
-                                # Expire vote-related caches by modifying their timestamps
-                                self._expire_cache_file(VOTES_CACHE_FILE)
-                                self._expire_cache_file(BILLS_CACHE_FILE)  # Bills might have new votes
-                                
-                                # Expire MP votes caches (they contain vote data)
-                                if os.path.exists(MP_VOTES_CACHE_DIR):
-                                    for mp_file in os.listdir(MP_VOTES_CACHE_DIR):
-                                        if mp_file.endswith('.json'):
-                                            mp_cache_path = os.path.join(MP_VOTES_CACHE_DIR, mp_file)
-                                            self._expire_cache_file(mp_cache_path)
-                                
-                                # Expire party line stats (they depend on vote data)
-                                party_line_cache = os.path.join(CACHE_DIR, 'party_line_stats.json')
-                                if os.path.exists(party_line_cache):
-                                    self._expire_cache_file(party_line_cache)
-                                
-                                return True
-                            else:
-                                self.logger.info(f"No new votes found. API: {most_recent_api_date}, Cached: {most_recent_cached_date}")
-                        else:
-                            self.logger.warning("Cached vote has no date, cannot compare")
-                    else:
-                        self.logger.info("No cached votes found, will update normally")
+                        for vote in cached_votes:
+                            vote_url = vote.get('url', '')
+                            if vote_url:
+                                # Extract vote ID from URL
+                                vote_id = vote_url.replace('/votes/', '').replace('/', '_').rstrip('_')
+                                if vote_id:
+                                    cached_vote_ids.add(vote_id)
+                                    self.logger.debug(f"Cached vote ID: {vote_id}, Date: {vote.get('date')}")
                 except Exception as e:
                     self.logger.warning(f"Error reading cached votes: {e}")
+            
+            # Check if there are any new vote IDs in API that aren't in cache
+            new_vote_ids = api_vote_ids - cached_vote_ids
+            
+            if new_vote_ids:
+                self.logger.info(f"New votes detected! Found {len(new_vote_ids)} new vote(s): {', '.join(new_vote_ids)}")
+                self.logger.info("Expiring vote-related caches due to new votes...")
+                
+                # Expire vote-related caches by modifying their timestamps
+                self._expire_cache_file(VOTES_CACHE_FILE)
+                self._expire_cache_file(BILLS_CACHE_FILE)  # Bills might have new votes
+                
+                # Expire MP votes caches (they contain vote data)
+                if os.path.exists(MP_VOTES_CACHE_DIR):
+                    expired_count = 0
+                    for mp_file in os.listdir(MP_VOTES_CACHE_DIR):
+                        if mp_file.endswith('.json'):
+                            mp_cache_path = os.path.join(MP_VOTES_CACHE_DIR, mp_file)
+                            self._expire_cache_file(mp_cache_path)
+                            expired_count += 1
+                    self.logger.info(f"Expired {expired_count} MP voting record caches")
+                
+                # Expire party line stats (they depend on vote data)
+                party_line_cache = os.path.join(CACHE_DIR, 'party_line_stats.json')
+                if os.path.exists(party_line_cache):
+                    self._expire_cache_file(party_line_cache)
+                
+                return True
             else:
-                self.logger.info("No votes cache file exists, will update normally")
+                self.logger.info(f"No new votes found. API has {len(api_vote_ids)} votes, all present in cache")
                 
         except Exception as e:
             self.logger.error(f"Error checking for new votes: {e}")
@@ -906,6 +921,25 @@ class UnifiedCacheUpdater:
         """Download and cache MP profile images"""
         self.log_operation("MP Images Cache", "STARTED")
         
+        # Check if images cache is expired first
+        if not self.force_full:
+            # Check if any image files exist and if they're fresh
+            if os.path.exists(IMAGES_CACHE_DIR):
+                image_files = [f for f in os.listdir(IMAGES_CACHE_DIR) if f.endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp'))]
+                if image_files:
+                    # Check a sample of image files to see if they're fresh
+                    sample_size = min(10, len(image_files))
+                    fresh_count = 0
+                    for image_file in image_files[:sample_size]:
+                        image_path = os.path.join(IMAGES_CACHE_DIR, image_file)
+                        if not self.is_cache_expired(image_path, 'images'):
+                            fresh_count += 1
+                    
+                    # If most images are fresh, skip update
+                    if fresh_count >= sample_size * 0.8:  # 80% are fresh
+                        self.log_operation("MP Images Cache", "SKIPPED", f"Most images still fresh ({fresh_count}/{sample_size} sampled)")
+                        return True
+        
         # Load politicians list
         try:
             with open(POLITICIANS_CACHE_FILE, 'r') as f:
@@ -915,19 +949,25 @@ class UnifiedCacheUpdater:
             self.log_operation("MP Images Cache", "FAILED", f"Cannot load politicians: {e}")
             return False
         
-        # Also load historical MPs for comprehensive image caching
-        historical_mps = []
-        try:
-            if os.path.exists(HISTORICAL_MPS_CACHE_FILE):
-                with open(HISTORICAL_MPS_CACHE_FILE, 'r') as f:
-                    historical_data = json.load(f)
-                historical_mps = historical_data.get('data', [])
-        except Exception as e:
-            self.logger.warning(f"Could not load historical MPs for image caching: {e}")
-        
-        # Combine current and historical MPs
-        all_mps = politicians + historical_mps
-        self.logger.info(f"Found {len(politicians)} current MPs and {len(historical_mps)} historical MPs for image caching")
+        # For auto mode, only cache current MPs to avoid long processing times
+        # Historical MPs can be cached separately if needed
+        if self.mode == 'auto':
+            all_mps = politicians
+            self.logger.info(f"Found {len(politicians)} current MPs for image caching (auto mode)")
+        else:
+            # Also load historical MPs for comprehensive image caching in full mode
+            historical_mps = []
+            try:
+                if os.path.exists(HISTORICAL_MPS_CACHE_FILE):
+                    with open(HISTORICAL_MPS_CACHE_FILE, 'r') as f:
+                        historical_data = json.load(f)
+                    historical_mps = historical_data.get('data', [])
+            except Exception as e:
+                self.logger.warning(f"Could not load historical MPs for image caching: {e}")
+            
+            # Combine current and historical MPs
+            all_mps = politicians + historical_mps
+            self.logger.info(f"Found {len(politicians)} current MPs and {len(historical_mps)} historical MPs for image caching")
         
         successful_downloads = 0
         skipped_existing = 0
