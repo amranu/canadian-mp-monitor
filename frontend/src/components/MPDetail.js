@@ -639,7 +639,17 @@ function MPDetail() {
               {Object.keys(partyLineStats.party_loyalty_by_session).length > 0 && (
                 <div>
                   <h4 style={{ margin: '0 0 15px 0', color: '#495057' }}>By Parliamentary Session</h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
+                  <div style={{ 
+                    maxHeight: '240px', 
+                    overflowY: 'auto',
+                    border: '1px solid #e9ecef',
+                    borderRadius: '4px',
+                    padding: '8px',
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '8px', 
+                    fontSize: '14px' 
+                  }}>
                     {Object.entries(partyLineStats.party_loyalty_by_session)
                       .sort(([a], [b]) => b.localeCompare(a))
                       .map(([session, stats]) => {
