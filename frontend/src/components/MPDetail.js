@@ -686,7 +686,7 @@ function MPDetail() {
               {partyLineStats.party_discipline_breaks && partyLineStats.party_discipline_breaks.length > 0 && (
                 <div>
                   <h4 style={{ margin: '0 0 15px 0', color: '#495057' }}>
-                    All Party Discipline Breaks ({partyLineStats.party_discipline_breaks.length})
+                    Recent Party Discipline Breaks ({partyLineStats.party_discipline_breaks.length})
                   </h4>
                   <div style={{ 
                     maxHeight: '240px', 
