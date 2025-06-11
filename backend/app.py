@@ -2089,7 +2089,14 @@ def get_debates():
         
         # Check if cache is expired
         if 'expires' in debates_data:
-            expires_timestamp = datetime.fromisoformat(debates_data['expires'].replace('Z', '+00:00'))
+            expires_value = debates_data['expires']
+            if isinstance(expires_value, (int, float)):
+                # Handle timestamp format
+                expires_timestamp = datetime.fromtimestamp(expires_value)
+            else:
+                # Handle ISO format with potential 'Z' suffix
+                expires_timestamp = datetime.fromisoformat(str(expires_value).replace('Z', '+00:00'))
+            
             if datetime.now() > expires_timestamp:
                 debates_data['cache_expired'] = True
         
@@ -2147,7 +2154,14 @@ def get_mp_debates(politician_slug):
         
         # Check if cache is expired
         if 'expires' in mp_debates_data:
-            expires_timestamp = datetime.fromisoformat(mp_debates_data['expires'].replace('Z', '+00:00'))
+            expires_value = mp_debates_data['expires']
+            if isinstance(expires_value, (int, float)):
+                # Handle timestamp format
+                expires_timestamp = datetime.fromtimestamp(expires_value)
+            else:
+                # Handle ISO format with potential 'Z' suffix
+                expires_timestamp = datetime.fromisoformat(str(expires_value).replace('Z', '+00:00'))
+            
             if datetime.now() > expires_timestamp:
                 mp_debates_data['cache_expired'] = True
         
