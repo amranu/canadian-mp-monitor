@@ -187,6 +187,15 @@ class UnifiedCacheUpdater:
         if not os.path.exists(cache_file):
             return True
             
+        # For image files, check file modification time instead of JSON content
+        if cache_type == 'images' or cache_file.endswith(('.jpg', '.jpeg', '.png', '.gif', '.webp')):
+            try:
+                file_age = time.time() - os.path.getmtime(cache_file)
+                return file_age > CACHE_DURATIONS.get(cache_type, CACHE_DURATIONS['images'])
+            except OSError:
+                return True
+        
+        # For JSON cache files, check expires field
         try:
             with open(cache_file, 'r') as f:
                 data = json.load(f)
@@ -194,8 +203,13 @@ class UnifiedCacheUpdater:
             expires = data.get('expires', 0)
             return time.time() > expires
             
-        except (json.JSONDecodeError, KeyError):
-            return True
+        except (json.JSONDecodeError, KeyError, UnicodeDecodeError):
+            # If we can't read the file as JSON, fall back to file modification time
+            try:
+                file_age = time.time() - os.path.getmtime(cache_file)
+                return file_age > CACHE_DURATIONS.get(cache_type, 3600)  # Default 1 hour
+            except OSError:
+                return True
     
     def save_cache_data(self, data: dict, cache_file: str, cache_type: str) -> bool:
         """Save cache data with expiration timestamp"""
@@ -331,13 +345,17 @@ class UnifiedCacheUpdater:
                     
                     if cached_votes:
                         for vote in cached_votes:
-                            vote_url = vote.get('url', '')
-                            if vote_url:
-                                # Extract vote ID from URL
-                                vote_id = vote_url.replace('/votes/', '').replace('/', '_').rstrip('_')
-                                if vote_id:
-                                    cached_vote_ids.add(vote_id)
-                                    self.logger.debug(f"Cached vote ID: {vote_id}, Date: {vote.get('date')}")
+                            # Handle both dict and string objects
+                            if isinstance(vote, dict):
+                                vote_url = vote.get('url', '')
+                                if vote_url:
+                                    # Extract vote ID from URL
+                                    vote_id = vote_url.replace('/votes/', '').replace('/', '_').rstrip('_')
+                                    if vote_id:
+                                        cached_vote_ids.add(vote_id)
+                                        self.logger.debug(f"Cached vote ID: {vote_id}, Date: {vote.get('date')}")
+                            else:
+                                self.logger.warning(f"Unexpected vote format in cache: {type(vote)}")
                 except Exception as e:
                     self.logger.warning(f"Error reading cached votes: {e}")
             
@@ -377,10 +395,28 @@ class UnifiedCacheUpdater:
         return False
     
     def _expire_cache_file(self, cache_file: str):
-        """Expire a cache file by setting its modification time to a very old date"""
+        """Expire a cache file by updating its expires timestamp in JSON content"""
         try:
             if os.path.exists(cache_file):
-                # Set modification time to 1 week ago to ensure it's considered expired
+                # For JSON cache files, update the expires field
+                if cache_file.endswith('.json'):
+                    try:
+                        with open(cache_file, 'r') as f:
+                            data = json.load(f)
+                        
+                        # Set expires to a time in the past
+                        data['expires'] = time.time() - 3600  # 1 hour ago
+                        
+                        with open(cache_file, 'w') as f:
+                            json.dump(data, f, indent=2)
+                        
+                        self.logger.info(f"Expired cache file: {os.path.basename(cache_file)}")
+                        return
+                    except (json.JSONDecodeError, KeyError):
+                        # If JSON parsing fails, fall back to modification time
+                        pass
+                
+                # For non-JSON files (like images), set modification time to old date
                 old_time = time.time() - (7 * 24 * 60 * 60)
                 os.utime(cache_file, (old_time, old_time))
                 self.logger.info(f"Expired cache file: {os.path.basename(cache_file)}")
