@@ -21,7 +21,7 @@ function MPDetail() {
   const [activeTab, setActiveTab] = useState(() => {
     // Initialize tab from URL params, default to 'votes'
     const tabFromUrl = searchParams.get('tab');
-    return ['votes', 'statistics', 'bills', 'expenditures'].includes(tabFromUrl) ? tabFromUrl : 'votes';
+    return ['votes', 'statistics', 'bills', 'debates', 'expenditures'].includes(tabFromUrl) ? tabFromUrl : 'votes';
   });
   const [selectedSession, setSelectedSession] = useState('all');
   const [availableSessions, setAvailableSessions] = useState([]);
@@ -33,6 +33,8 @@ function MPDetail() {
   const [partyLineSessionsLoading, setPartyLineSessionsLoading] = useState(false);
   const [expenditures, setExpenditures] = useState(null);
   const [expendituresLoading, setExpendituresLoading] = useState(false);
+  const [debates, setDebates] = useState(null);
+  const [debatesLoading, setDebatesLoading] = useState(false);
 
   // Function to update tab and persist to URL
   const updateActiveTab = (newTab) => {
@@ -61,7 +63,7 @@ function MPDetail() {
   // Sync activeTab state with URL parameters (for browser back/forward)
   useEffect(() => {
     const tabFromUrl = searchParams.get('tab');
-    if (tabFromUrl && ['votes', 'statistics', 'bills'].includes(tabFromUrl) && tabFromUrl !== activeTab) {
+    if (tabFromUrl && ['votes', 'statistics', 'bills', 'debates', 'expenditures'].includes(tabFromUrl) && tabFromUrl !== activeTab) {
       setActiveTab(tabFromUrl);
     }
   }, [searchParams]); // Removed activeTab dependency to prevent loops
@@ -91,6 +93,13 @@ function MPDetail() {
   useEffect(() => {
     if (activeTab === 'expenditures' && mpSlug && !expenditures && !expendituresLoading) {
       loadExpenditures();
+    }
+  }, [activeTab, mpSlug]);
+
+  // Load debates when debates tab is selected
+  useEffect(() => {
+    if (activeTab === 'debates' && mpSlug && !debates && !debatesLoading) {
+      loadDebates();
     }
   }, [activeTab, mpSlug]);
 
@@ -487,6 +496,20 @@ function MPDetail() {
       setExpenditures(null);
     } finally {
       setExpendituresLoading(false);
+    }
+  };
+
+  const loadDebates = async () => {
+    try {
+      setDebatesLoading(true);
+      const data = await parliamentApi.getMPDebates(mpSlug);
+      setDebates(data);
+      console.log('Debates loaded:', data);
+    } catch (error) {
+      console.error('Error loading debates:', error);
+      setDebates(null);
+    } finally {
+      setDebatesLoading(false);
     }
   };
 
@@ -1083,6 +1106,33 @@ function MPDetail() {
             </button>
           )}
           <button
+            onClick={() => updateActiveTab('debates')}
+            style={{
+              padding: '12px 24px',
+              border: 'none',
+              backgroundColor: 'transparent',
+              color: activeTab === 'debates' ? '#333' : '#666',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: activeTab === 'debates' ? '600' : 'normal',
+              borderBottom: activeTab === 'debates' ? '2px solid #333' : '2px solid transparent',
+              marginBottom: '-2px',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              if (activeTab !== 'debates') {
+                e.target.style.color = '#333';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (activeTab !== 'debates') {
+                e.target.style.color = '#666';
+              }
+            }}
+          >
+            🗣️ Debates
+          </button>
+          <button
             onClick={() => updateActiveTab('expenditures')}
             style={{
               padding: '12px 24px',
@@ -1514,6 +1564,169 @@ function MPDetail() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Debates Tab */}
+      {activeTab === 'debates' && (
+        <div>
+          <div style={{ marginBottom: '30px' }}>
+            <h2 style={{ margin: '0 0 20px 0' }}>
+              {mp.name}'s Parliamentary Debates
+            </h2>
+            {debates && debates.debates_count !== undefined && (
+              <p style={{ color: '#666', fontSize: '14px', marginBottom: '20px' }}>
+                Participated in {debates.debates_count} debates | 
+                Based on {debates.speeches_analyzed} speeches analyzed | 
+                Last updated: {new Date(debates.last_updated).toLocaleDateString()}
+              </p>
+            )}
+          </div>
+
+          {debatesLoading && (
+            <div style={{ textAlign: 'center', padding: '40px' }}>
+              <div>Loading debate participation data...</div>
+            </div>
+          )}
+
+          {!debatesLoading && debates && debates.debates && debates.debates.length > 0 && (
+            <div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                {debates.debates.map((debate, index) => (
+                  <div 
+                    key={index}
+                    style={{
+                      border: '1px solid #ddd',
+                      borderRadius: '8px',
+                      padding: '20px',
+                      backgroundColor: 'white',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                    }}
+                  >
+                    <div style={{ marginBottom: '15px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                          <div style={{ 
+                            padding: '4px 8px', 
+                            backgroundColor: '#e9ecef', 
+                            borderRadius: '4px', 
+                            fontSize: '12px',
+                            fontWeight: 'bold',
+                            color: '#495057'
+                          }}>
+                            Parliamentary Debate
+                          </div>
+                          
+                          {debate.procedural && (
+                            <div style={{ 
+                              padding: '4px 8px', 
+                              backgroundColor: '#fff3cd', 
+                              borderRadius: '4px', 
+                              fontSize: '12px',
+                              fontWeight: 'bold',
+                              color: '#856404'
+                            }}>
+                              Procedural
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div style={{ 
+                          fontSize: '14px', 
+                          color: '#666',
+                          fontWeight: '500'
+                        }}>
+                          📅 {debate.date}
+                        </div>
+                      </div>
+                      
+                      <div style={{ marginBottom: '15px' }}>
+                        <h4 style={{ 
+                          margin: '0 0 10px 0', 
+                          fontSize: '16px', 
+                          color: '#333',
+                          fontWeight: '600'
+                        }}>
+                          Debate Participation
+                        </h4>
+                        
+                        {debate.content_preview && (
+                          <div style={{ 
+                            backgroundColor: '#f8f9fa',
+                            padding: '12px',
+                            borderRadius: '4px',
+                            fontSize: '14px',
+                            color: '#495057',
+                            fontStyle: 'italic',
+                            lineHeight: '1.4'
+                          }}>
+                            "{debate.content_preview}..."
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '10px'
+                      }}>
+                        <div style={{ 
+                          fontSize: '13px', 
+                          color: '#666',
+                          display: 'flex',
+                          gap: '15px',
+                          flexWrap: 'wrap'
+                        }}>
+                          {debate.speaking_time && (
+                            <span><strong>💬 Approx. words:</strong> {Math.round(debate.speaking_time / 5)}</span>
+                          )}
+                          {debate.debate_url && (
+                            <span><strong>🔗 Debate URL:</strong> {debate.debate_url.replace('/debates/', '').replace(/\/$/, '')}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div style={{ marginTop: '30px', textAlign: 'center' }}>
+                <a 
+                  href="https://openparliament.ca/debates/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    color: '#007bff',
+                    textDecoration: 'none',
+                    fontWeight: '600',
+                    fontSize: '14px'
+                  }}
+                >
+                  🔗 View all parliamentary debates on OpenParliament.ca
+                </a>
+              </div>
+            </div>
+          )}
+
+          {!debatesLoading && debates && (!debates.debates || debates.debates.length === 0) && (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+              <h4>No debate participation found</h4>
+              <p>{mp.name} has no recorded debate participation in our database.</p>
+              <p style={{ fontSize: '14px', marginTop: '15px' }}>
+                Note: Debate data is based on speeches in the House of Commons. 
+                This may not include all forms of parliamentary participation.
+              </p>
+            </div>
+          )}
+
+          {!debatesLoading && !debates && (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+              <h4>Debate data not available</h4>
+              <p>Unable to retrieve debate participation information for {mp.name}.</p>
+            </div>
+          )}
         </div>
       )}
 

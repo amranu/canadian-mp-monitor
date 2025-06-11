@@ -52,7 +52,9 @@ CACHE_DURATIONS = {
     'mp_votes': 172800,      # 48 hours - MP voting records
     'historical_mps': 604800, # 1 week - historical data changes rarely
     'legisinfo': 172800,     # 48 hours - LEGISinfo data is mostly static
-    'images': 2592000        # 30 days - MP images change rarely
+    'images': 2592000,       # 30 days - MP images change rarely
+    'debates': 604800,       # 1 week - debates are historical records
+    'mp_debates': 172800     # 48 hours - MP-specific debate participation
 }
 
 # Cache file paths
@@ -66,6 +68,8 @@ MP_VOTES_CACHE_DIR = os.path.join(CACHE_DIR, 'mp_votes')
 HISTORICAL_MPS_CACHE_FILE = os.path.join(CACHE_DIR, 'historical_mps.json')
 LEGISINFO_CACHE_DIR = os.path.join(CACHE_DIR, 'legisinfo')
 IMAGES_CACHE_DIR = os.path.join(CACHE_DIR, 'images')
+DEBATES_CACHE_FILE = os.path.join(CACHE_DIR, 'debates.json')
+MP_DEBATES_CACHE_DIR = os.path.join(CACHE_DIR, 'mp_debates')
 STATISTICS_FILE = os.path.join(CACHE_DIR, 'unified_cache_statistics.json')
 
 # API rate limiting
@@ -117,6 +121,7 @@ class UnifiedCacheUpdater:
         os.makedirs(VOTE_DETAILS_CACHE_DIR, exist_ok=True)
         os.makedirs(LEGISINFO_CACHE_DIR, exist_ok=True)
         os.makedirs(IMAGES_CACHE_DIR, exist_ok=True)
+        os.makedirs(MP_DEBATES_CACHE_DIR, exist_ok=True)
     
     def acquire_lock(self):
         """Acquire process lock to prevent multiple instances"""
@@ -1172,6 +1177,209 @@ class UnifiedCacheUpdater:
         """Fetch details for a single historical MP"""
         return self.api_request(f"{PARLIAMENT_API_BASE}{mp_url}")
     
+    def update_debates_cache(self) -> bool:
+        """Update debates cache with recent parliamentary debates"""
+        self.log_operation("Debates Cache", "STARTED")
+        
+        if not self.is_cache_expired(DEBATES_CACHE_FILE, 'debates'):
+            self.log_operation("Debates Cache", "SKIPPED", "Cache still fresh")
+            return True
+        
+        # Fetch recent debates from OpenParliament API
+        all_debates = []
+        offset = 0
+        limit = 50
+        max_debates = 1000  # Limit to most recent 1000 debates for performance
+        
+        while len(all_debates) < max_debates:
+            data = self.api_request(f'{PARLIAMENT_API_BASE}/debates/', {
+                'limit': limit, 'offset': offset
+            })
+            
+            if not data or not data.get('objects'):
+                break
+                
+            debates = data['objects']
+            all_debates.extend(debates)
+            self.logger.info(f"Loaded {len(debates)} debates (total: {len(all_debates)})")
+            
+            # Stop if we have enough or no more data
+            if not data.get('pagination', {}).get('next_url') or len(debates) < limit:
+                break
+                
+            offset += limit
+            
+            # Safety break
+            if offset > 2000:
+                self.logger.warning("Debates: Safety break at offset 2000")
+                break
+        
+        if all_debates:
+            # Sort debates by date (most recent first)
+            all_debates.sort(key=lambda x: x.get('date', ''), reverse=True)
+            
+            # Limit to most recent debates
+            all_debates = all_debates[:max_debates]
+            
+            success = self.save_cache_data(all_debates, DEBATES_CACHE_FILE, 'debates')
+            self.log_operation("Debates Cache", "COMPLETED" if success else "FAILED", 
+                             f"{len(all_debates)} debates")
+            return success
+        
+        self.log_operation("Debates Cache", "FAILED", "No debates retrieved")
+        return False
+    
+    def update_mp_debates_cache(self, max_mps: int = None) -> bool:
+        """Update MP-specific debates cache for current MPs"""
+        self.log_operation("MP Debates Cache", "STARTED")
+        
+        # Load current politicians
+        if not os.path.exists(POLITICIANS_CACHE_FILE):
+            self.logger.error("Politicians cache not found - run politicians cache first")
+            return False
+        
+        try:
+            with open(POLITICIANS_CACHE_FILE, 'r') as f:
+                politicians_data = json.load(f)
+        except Exception as e:
+            self.logger.error(f"Error loading politicians cache: {e}")
+            return False
+        
+        if not politicians_data.get('data'):
+            self.logger.error("Politicians cache is not properly cached")
+            return False
+        
+        politicians = politicians_data['data']
+        if max_mps:
+            politicians = politicians[:max_mps]
+        
+        self.logger.info(f"Updating debates cache for {len(politicians)} MPs")
+        
+        successful_updates = 0
+        failed_updates = 0
+        
+        with ThreadPoolExecutor(max_workers=MAX_CONCURRENT_WORKERS) as executor:
+            future_to_mp = {}
+            
+            for mp in politicians:
+                mp_slug = mp.get('url', '').replace('/politicians/', '').replace('/', '')
+                if not mp_slug:
+                    continue
+                
+                # Check if MP debates cache is fresh
+                mp_cache_file = os.path.join(MP_DEBATES_CACHE_DIR, f'{mp_slug}.json')
+                if not self.is_cache_expired(mp_cache_file, 'mp_debates'):
+                    continue
+                
+                future = executor.submit(self._update_single_mp_debates, mp_slug, mp.get('name', 'Unknown'))
+                future_to_mp[future] = (mp_slug, mp.get('name', 'Unknown'))
+            
+            for future in as_completed(future_to_mp):
+                mp_slug, mp_name = future_to_mp[future]
+                try:
+                    success = future.result(timeout=60)
+                    if success:
+                        successful_updates += 1
+                    else:
+                        failed_updates += 1
+                except Exception as e:
+                    self.logger.error(f"Error updating debates for {mp_name} ({mp_slug}): {e}")
+                    failed_updates += 1
+        
+        self.log_operation("MP Debates Cache", "COMPLETED", 
+                         f"{successful_updates} successful, {failed_updates} failed")
+        return successful_updates > 0
+    
+    def _update_single_mp_debates(self, mp_slug: str, mp_name: str) -> bool:
+        """Update debates cache for a single MP"""
+        try:
+            # Fetch MP speeches from OpenParliament API (speeches are part of debates)
+            all_speeches = []
+            offset = 0
+            limit = 50
+            max_speeches = 500  # Limit per MP for performance
+            
+            while len(all_speeches) < max_speeches:
+                # Use politician filter in speeches API
+                data = self.api_request(f'{PARLIAMENT_API_BASE}/speeches/', {
+                    'politician': f'/politicians/{mp_slug}/',
+                    'limit': limit,
+                    'offset': offset
+                })
+                
+                if not data or not data.get('objects'):
+                    break
+                
+                speeches = data['objects']
+                all_speeches.extend(speeches)
+                
+                # Stop if no more data or we have enough
+                if not data.get('pagination', {}).get('next_url') or len(speeches) < limit:
+                    break
+                
+                offset += limit
+                
+                # Safety break
+                if offset > 1000:
+                    break
+            
+            # Group speeches by debate and add debate context
+            debates_participation = []
+            debates_seen = set()
+            
+            for speech in all_speeches:
+                # Extract debate information from speech
+                debate_url = speech.get('debate_url', '')
+                if not debate_url or debate_url in debates_seen:
+                    continue
+                
+                debates_seen.add(debate_url)
+                
+                # Create debate participation record
+                debate_info = {
+                    'debate_url': debate_url,
+                    'date': speech.get('time', '').split('T')[0] if speech.get('time') else '',
+                    'content_preview': speech.get('content', {}).get('en', '')[:200] if speech.get('content', {}).get('en') else '',
+                    'speaking_time': len(speech.get('content', {}).get('en', '')) if speech.get('content', {}).get('en') else 0,
+                    'procedural': speech.get('procedural', False)
+                }
+                
+                debates_participation.append(debate_info)
+            
+            # Sort by date (most recent first)
+            debates_participation.sort(key=lambda x: x.get('date', ''), reverse=True)
+            
+            # Limit to most recent debates
+            debates_participation = debates_participation[:100]
+            
+            # Save MP debates cache
+            mp_debates_data = {
+                'mp_slug': mp_slug,
+                'mp_name': mp_name,
+                'debates_count': len(debates_participation),
+                'speeches_analyzed': len(all_speeches),
+                'debates': debates_participation,
+                'last_updated': datetime.now().isoformat(),
+                'expires': (datetime.now() + timedelta(seconds=CACHE_DURATIONS['mp_debates'])).isoformat()
+            }
+            
+            mp_cache_file = os.path.join(MP_DEBATES_CACHE_DIR, f'{mp_slug}.json')
+            
+            try:
+                with open(mp_cache_file, 'w') as f:
+                    json.dump(mp_debates_data, f, indent=2, ensure_ascii=False)
+                
+                self.logger.debug(f"Cached {len(debates_participation)} debates for {mp_name}")
+                return True
+                
+            except Exception as e:
+                self.logger.error(f"Error saving debates cache for {mp_name}: {e}")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"Error fetching debates for {mp_name}: {e}")
+            return False
+    
     def update_mp_images_cache(self) -> bool:
         """Download and cache MP profile images"""
         self.log_operation("MP Images Cache", "STARTED")
@@ -1446,6 +1654,8 @@ class UnifiedCacheUpdater:
         self.update_bills_cache()
         self.update_mp_voting_records(max_mps=max_mps)
         self.update_historical_mps()
+        self.update_debates_cache()
+        self.update_mp_debates_cache(max_mps=max_mps)
         self.update_mp_images_cache()
         self.update_party_line_stats()
         
@@ -1459,6 +1669,7 @@ class UnifiedCacheUpdater:
         # In incremental mode, only update fresh MP records if cache is expired
         # This will still process all MPs, but only those with expired cache
         self.update_mp_voting_records(max_mps=max_mps)
+        self.update_mp_debates_cache(max_mps=max_mps)
         self.update_party_line_stats()
         
         self.save_statistics()
@@ -1543,11 +1754,29 @@ class UnifiedCacheUpdater:
         self.update_mp_images_cache()
         
         self.save_statistics()
+    
+    def run_debates_mode(self):
+        """Run only debates cache update"""
+        self.logger.info("Starting unified cache update (DEBATES mode)")
+        
+        self.force_full = True
+        self.update_debates_cache()
+        
+        self.save_statistics()
+    
+    def run_mp_debates_mode(self, max_mps=None):
+        """Run only MP debates cache update"""
+        self.logger.info("Starting unified cache update (MP-DEBATES mode)")
+        
+        self.force_full = True
+        self.update_mp_debates_cache(max_mps=max_mps)
+        
+        self.save_statistics()
 
 def main():
     parser = argparse.ArgumentParser(description='Unified Cache Update Script')
-    parser.add_argument('--mode', choices=['auto', 'incremental', 'full', 'party-line', 'politicians', 'votes', 'vote-details', 'bills', 'mp-votes', 'historical-mps', 'images'], default='auto',
-                       help='Update mode: auto (smart), incremental (new data only), full (rebuild all), party-line (only party line stats), politicians (only politicians cache), votes (only votes cache), vote-details (only vote details cache), bills (only bills cache), mp-votes (only MP voting records), historical-mps (only historical MPs cache), images (only MP profile images)')
+    parser.add_argument('--mode', choices=['auto', 'incremental', 'full', 'party-line', 'politicians', 'votes', 'vote-details', 'bills', 'mp-votes', 'historical-mps', 'images', 'debates', 'mp-debates'], default='auto',
+                       help='Update mode: auto (smart), incremental (new data only), full (rebuild all), party-line (only party line stats), politicians (only politicians cache), votes (only votes cache), vote-details (only vote details cache), bills (only bills cache), mp-votes (only MP voting records), historical-mps (only historical MPs cache), images (only MP profile images), debates (only debates cache), mp-debates (only MP debates cache)')
     parser.add_argument('--force', action='store_true',
                        help='Force update even if cache is fresh')
     parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'], default='INFO',
@@ -1586,6 +1815,10 @@ def main():
             updater.run_historical_mps_mode()
         elif args.mode == 'images':
             updater.run_images_mode()
+        elif args.mode == 'debates':
+            updater.run_debates_mode()
+        elif args.mode == 'mp-debates':
+            updater.run_mp_debates_mode(max_mps=args.max_mps)
             
     except KeyboardInterrupt:
         updater.logger.info("Cache update interrupted by user")

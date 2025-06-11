@@ -36,6 +36,8 @@ IMAGES_CACHE_DIR = os.path.join(CACHE_DIR, 'images')
 EXPENDITURES_INDEX_FILE = os.path.join(CACHE_DIR, 'expenditures', 'mp_expenditures_index.json')
 EXPENDITURES_SUMMARY_FILE = os.path.join(CACHE_DIR, 'expenditures', 'mp_expenditures_summary.json')
 EXPENDITURES_MP_DIR = os.path.join(CACHE_DIR, 'expenditures', 'mp_files')
+DEBATES_CACHE_FILE = os.path.join(CACHE_DIR, 'debates.json')
+MP_DEBATES_CACHE_DIR = os.path.join(CACHE_DIR, 'mp_debates')
 
 # Ensure cache directories exist
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -44,6 +46,7 @@ os.makedirs(VOTE_DETAILS_CACHE_DIR, exist_ok=True)
 os.makedirs(LEGISINFO_CACHE_DIR, exist_ok=True)
 os.makedirs(IMAGES_CACHE_DIR, exist_ok=True)
 os.makedirs(EXPENDITURES_MP_DIR, exist_ok=True)
+os.makedirs(MP_DEBATES_CACHE_DIR, exist_ok=True)
 
 # In-memory cache for fast access (loaded from files)
 cache = {
@@ -2067,6 +2070,94 @@ def serve_mp_image(mp_slug):
         
     except Exception as e:
         print(f"[{datetime.now()}] Error serving image for {mp_slug}: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/debates')
+def get_debates():
+    """Get cached debates data"""
+    try:
+        # Check if debates cache file exists
+        if not os.path.exists(DEBATES_CACHE_FILE):
+            return jsonify({
+                'error': 'Debates cache not found',
+                'message': 'Debates data has not been cached yet. Run the cache script to populate debate data.'
+            }), 404
+        
+        # Load debates from cache file
+        with open(DEBATES_CACHE_FILE, 'r') as f:
+            debates_data = json.load(f)
+        
+        # Check if cache is expired
+        if 'expires' in debates_data:
+            expires_timestamp = datetime.fromisoformat(debates_data['expires'].replace('Z', '+00:00'))
+            if datetime.now() > expires_timestamp:
+                debates_data['cache_expired'] = True
+        
+        # Handle pagination
+        limit = request.args.get('limit', 20, type=int)
+        offset = request.args.get('offset', 0, type=int)
+        
+        if 'data' in debates_data and isinstance(debates_data['data'], list):
+            debates = debates_data['data']
+            
+            # Apply pagination
+            paginated_debates = debates[offset:offset + limit]
+            
+            return jsonify({
+                'objects': paginated_debates,
+                'total_count': len(debates),
+                'limit': limit,
+                'offset': offset,
+                'has_more': offset + limit < len(debates),
+                'cache_info': {
+                    'cached': True,
+                    'last_updated': debates_data.get('last_updated'),
+                    'expires': debates_data.get('expires'),
+                    'cache_expired': debates_data.get('cache_expired', False)
+                }
+            })
+        else:
+            return jsonify({
+                'error': 'Invalid debates cache format',
+                'message': 'Debates cache file exists but has invalid format'
+            }), 500
+            
+    except Exception as e:
+        print(f"[{datetime.now()}] Error loading debates: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/politician/<politician_slug>/debates')
+def get_mp_debates(politician_slug):
+    """Get cached debate participation data for a specific MP"""
+    try:
+        # Construct path to MP debates cache file
+        mp_debates_file = os.path.join(MP_DEBATES_CACHE_DIR, f'{politician_slug}.json')
+        
+        # Check if MP debates cache file exists
+        if not os.path.exists(mp_debates_file):
+            return jsonify({
+                'error': 'MP debates cache not found',
+                'message': f'Debate data for MP {politician_slug} has not been cached yet. Run the cache script to populate debate data.',
+                'cached': False
+            }), 404
+        
+        # Load MP debates from cache file
+        with open(mp_debates_file, 'r') as f:
+            mp_debates_data = json.load(f)
+        
+        # Check if cache is expired
+        if 'expires' in mp_debates_data:
+            expires_timestamp = datetime.fromisoformat(mp_debates_data['expires'].replace('Z', '+00:00'))
+            if datetime.now() > expires_timestamp:
+                mp_debates_data['cache_expired'] = True
+        
+        # Add cache status
+        mp_debates_data['cached'] = True
+        
+        return jsonify(mp_debates_data)
+            
+    except Exception as e:
+        print(f"[{datetime.now()}] Error loading MP debates for {politician_slug}: {e}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
