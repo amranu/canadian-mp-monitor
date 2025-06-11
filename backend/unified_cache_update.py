@@ -1323,25 +1323,42 @@ class UnifiedCacheUpdater:
                 if offset > 1000:
                     break
             
-            # Group speeches by debate and add debate context
+            # Group speeches by debate using h1/h2/h3 hierarchy
             debates_participation = []
             debates_seen = set()
             
             for speech in all_speeches:
-                # Extract debate information from speech
-                debate_url = speech.get('debate_url', '')
-                if not debate_url or debate_url in debates_seen:
+                # Create debate identifier from h1, h2, h3 fields
+                h1 = speech.get('h1', {}).get('en', '') if speech.get('h1') else ''
+                h2 = speech.get('h2', {}).get('en', '') if speech.get('h2') else ''
+                h3 = speech.get('h3', {}).get('en', '') if speech.get('h3') else ''
+                
+                # Skip if no debate context
+                if not h1 and not h2 and not h3:
                     continue
                 
-                debates_seen.add(debate_url)
+                # Create unique debate identifier
+                debate_id = f"{h1}|{h2}|{h3}".strip('|')
+                speech_date = speech.get('time', '').split('T')[0] if speech.get('time') else ''
+                debate_key = f"{speech_date}:{debate_id}"
+                
+                if debate_key in debates_seen:
+                    continue
+                
+                debates_seen.add(debate_key)
                 
                 # Create debate participation record
                 debate_info = {
-                    'debate_url': debate_url,
-                    'date': speech.get('time', '').split('T')[0] if speech.get('time') else '',
+                    'debate_id': debate_id,
+                    'debate_title': h3 or h2 or h1 or 'Parliamentary Debate',
+                    'debate_category': h1 or 'Parliamentary Business',
+                    'debate_subcategory': h2 or '',
+                    'debate_topic': h3 or '',
+                    'date': speech_date,
                     'content_preview': speech.get('content', {}).get('en', '')[:200] if speech.get('content', {}).get('en') else '',
                     'speaking_time': len(speech.get('content', {}).get('en', '')) if speech.get('content', {}).get('en') else 0,
-                    'procedural': speech.get('procedural', False)
+                    'procedural': speech.get('procedural', False),
+                    'speech_url': speech.get('url', '')
                 }
                 
                 debates_participation.append(debate_info)
