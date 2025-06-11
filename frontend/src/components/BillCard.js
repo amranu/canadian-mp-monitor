@@ -203,7 +203,7 @@ function BillCard({ bill, onClick }) {
               }}
             >
               <span>🏛️</span>
-              Details
+              LEGISInfo
               <span style={{ fontSize: '9px' }}>↗</span>
             </a>
             <a
