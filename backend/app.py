@@ -52,7 +52,8 @@ cache = {
     'bills': {'data': None, 'expires': 0, 'loading': False},
     'mp_votes': {},  # {mp_slug: {'data': [...], 'expires': timestamp, 'loading': False}}
     'mp_details': {},  # Cache for individual MP details fetched from API
-    'historical_mps': {'data': [], 'loaded': False}  # Historical MP data from previous sessions
+    'historical_mps': {'data': [], 'loaded': False},  # Historical MP data from previous sessions
+    'images': {}  # {mp_slug: {'data': bytes, 'mimetype': str, 'expires': timestamp}}
 }
 
 @app.route('/')
@@ -67,6 +68,8 @@ def hello():
     mp_votes_count = len([k for k, v in cache['mp_votes'].items() if v.get('data')])
     mp_votes_loading = len([k for k, v in cache['mp_votes'].items() if v.get('loading', False)])
     historical_mps_count = len(cache['historical_mps']['data'])
+    images_count = len(cache['images'])
+    valid_images_count = len([k for k, v in cache['images'].items() if time.time() < v['expires']])
     
     politicians_expires = datetime.fromtimestamp(cache['politicians']['expires']).isoformat() if cache['politicians']['expires'] > 0 else 'N/A'
     votes_expires = datetime.fromtimestamp(cache['votes']['expires']).isoformat() if cache['votes']['expires'] > 0 else 'N/A'
@@ -98,6 +101,11 @@ def hello():
             'historical_mps': {
                 'loaded': cache['historical_mps']['loaded'],
                 'count': historical_mps_count
+            },
+            'images': {
+                'total_cached': images_count,
+                'valid_cached': valid_images_count,
+                'cache_duration_hours': 1
             }
         },
         'cache_duration_hours': CACHE_DURATION / 3600
@@ -2015,14 +2023,44 @@ def get_party_line_session_details(session):
 
 @app.route('/api/images/<mp_slug>')
 def serve_mp_image(mp_slug):
-    """Serve cached MP profile images"""
+    """Serve cached MP profile images with memory caching"""
     try:
-        # Look for image file with various extensions
+        # Check memory cache first
+        if mp_slug in cache['images']:
+            cached_image = cache['images'][mp_slug]
+            # Check if cache is still valid (cache for 1 hour)
+            if time.time() < cached_image['expires']:
+                from flask import Response
+                return Response(
+                    cached_image['data'], 
+                    mimetype=cached_image['mimetype'],
+                    headers={'Cache-Control': 'public, max-age=3600'}
+                )
+        
+        # Not in memory cache, look for image file with various extensions
         for ext in ['jpg', 'jpeg', 'png', 'gif', 'webp']:
             image_path = os.path.join(IMAGES_CACHE_DIR, f"{mp_slug}.{ext}")
             if os.path.exists(image_path):
-                from flask import send_file
-                return send_file(image_path, mimetype=f'image/{ext}')
+                # Read image data into memory
+                with open(image_path, 'rb') as f:
+                    image_data = f.read()
+                
+                mimetype = f'image/{ext}'
+                expires = time.time() + 3600  # Cache for 1 hour
+                
+                # Store in memory cache
+                cache['images'][mp_slug] = {
+                    'data': image_data,
+                    'mimetype': mimetype,
+                    'expires': expires
+                }
+                
+                from flask import Response
+                return Response(
+                    image_data, 
+                    mimetype=mimetype,
+                    headers={'Cache-Control': 'public, max-age=3600'}
+                )
         
         # If no cached image found, return 404
         return jsonify({'error': 'Image not found'}), 404
