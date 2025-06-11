@@ -5,6 +5,7 @@ import MPDetail from './components/MPDetail';
 import VoteDetails from './components/VoteDetails';
 import Bills from './components/Bills';
 import BillDetail from './components/BillDetail';
+import Debates from './components/Debates';
 
 // Component to scroll to top on route change
 function ScrollToTop() {
@@ -68,6 +69,22 @@ function App() {
               >
                 Bills
               </Link>
+              <Link 
+                to="/debates" 
+                style={{ 
+                  color: '#007bff', 
+                  textDecoration: 'none', 
+                  fontSize: '16px',
+                  fontWeight: '500',
+                  padding: '8px 16px',
+                  borderRadius: '4px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+              >
+                Debates
+              </Link>
             </nav>
           </div>
         </header>
@@ -80,6 +97,7 @@ function App() {
             <Route path="/vote/:voteId" element={<VoteDetails />} />
             <Route path="/bills" element={<Bills />} />
             <Route path="/bill/:session/:number" element={<BillDetail />} />
+            <Route path="/debates" element={<Debates />} />
           </Routes>
         </main>
         
