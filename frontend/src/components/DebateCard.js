@@ -85,7 +85,7 @@ function DebateCard({ debate, onClick, showQuote = false, mpName = null }) {
         cursor: 'pointer',
         transition: 'box-shadow 0.2s, transform 0.1s',
         width: '100%',
-        height: '240px', // Fixed height for consistency with BillCard
+        height: '260px', // Fixed height for consistency with BillCard
         maxWidth: '400px',
         margin: '0',
         boxSizing: 'border-box',
