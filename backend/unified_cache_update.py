@@ -254,6 +254,59 @@ class UnifiedCacheUpdater:
             self.stats['errors'].append(f"API {url}: {e}")
             return None
     
+    def clean_debate_content(self, html_content: str) -> dict:
+        """
+        Clean HTML content from debates and extract metadata
+        
+        Args:
+            html_content: Raw HTML content from OpenParliament API
+            
+        Returns:
+            dict with 'clean_text' and 'metadata' keys
+        """
+        import re
+        
+        if not html_content:
+            return {'clean_text': '', 'metadata': {}}
+        
+        metadata = {}
+        
+        # Extract data-HoCid attribute
+        hocid_match = re.search(r'data-HoCid="([^"]*)"', html_content)
+        if hocid_match:
+            metadata['hoc_id'] = hocid_match.group(1)
+        
+        # Extract data-originallang attribute
+        lang_match = re.search(r'data-originallang="([^"]*)"', html_content)
+        if lang_match:
+            metadata['original_language'] = lang_match.group(1)
+        
+        # Extract any other data-* attributes
+        data_attrs = re.findall(r'data-([^=]+)="([^"]*)"', html_content)
+        for attr_name, attr_value in data_attrs:
+            if attr_name not in ['HoCid', 'originallang']:  # Don't duplicate
+                metadata[f'data_{attr_name}'] = attr_value
+        
+        # Clean HTML tags and attributes
+        clean_text = re.sub(r'<[^>]+>', '', html_content)
+        
+        # Replace common HTML entities
+        clean_text = clean_text.replace('&nbsp;', ' ')
+        clean_text = clean_text.replace('&amp;', '&')
+        clean_text = clean_text.replace('&lt;', '<')
+        clean_text = clean_text.replace('&gt;', '>')
+        clean_text = clean_text.replace('&quot;', '"')
+        clean_text = clean_text.replace('&#39;', "'")
+        
+        # Clean up extra whitespace
+        clean_text = re.sub(r'\s+', ' ', clean_text)
+        clean_text = clean_text.strip()
+        
+        return {
+            'clean_text': clean_text,
+            'metadata': metadata
+        }
+    
     def update_politicians_cache(self) -> bool:
         """Update politicians cache with all current MPs"""
         self.log_operation("Politicians Cache", "STARTED")
@@ -1348,6 +1401,13 @@ class UnifiedCacheUpdater:
                 debates_seen.add(debate_key)
                 
                 # Create debate participation record
+                raw_content = speech.get('content', {}).get('en', '') if speech.get('content', {}).get('en') else ''
+                
+                # Clean content and extract metadata
+                content_data = self.clean_debate_content(raw_content)
+                clean_content = content_data['clean_text']
+                content_metadata = content_data['metadata']
+                
                 debate_info = {
                     'debate_id': debate_id,
                     'debate_title': h3 or h2 or h1 or 'Parliamentary Debate',
@@ -1355,8 +1415,10 @@ class UnifiedCacheUpdater:
                     'debate_subcategory': h2 or '',
                     'debate_topic': h3 or '',
                     'date': speech_date,
-                    'content_preview': speech.get('content', {}).get('en', '')[:200] if speech.get('content', {}).get('en') else '',
-                    'speaking_time': len(speech.get('content', {}).get('en', '')) if speech.get('content', {}).get('en') else 0,
+                    'content_preview': clean_content[:200] if clean_content else '',
+                    'content_full': clean_content,
+                    'content_metadata': content_metadata,
+                    'speaking_time': len(clean_content) if clean_content else 0,
                     'procedural': speech.get('procedural', False),
                     'speech_url': speech.get('url', '')
                 }
