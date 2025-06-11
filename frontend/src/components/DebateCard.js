@@ -69,7 +69,8 @@ function DebateCard({ debate, onClick, showQuote = false, mpName = null }) {
 
   const formatDebateNumber = (debate) => {
     const year = debate.date ? new Date(debate.date).getFullYear() : '';
-    return `${year} - #${debate.number}`;
+    // For debates, show just the year since they don't have traditional numbers
+    return year ? `${year}` : 'Parliamentary Debate';
   };
 
   return (
