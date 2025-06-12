@@ -206,6 +206,9 @@ class UnifiedCacheUpdater:
                 data = json.load(f)
             
             expires = data.get('expires', 0)
+            # Ensure expires is a number (handle string timestamps)
+            if isinstance(expires, str):
+                expires = float(expires)
             return time.time() > expires
             
         except (json.JSONDecodeError, KeyError, UnicodeDecodeError):
