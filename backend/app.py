@@ -360,6 +360,7 @@ def load_all_politicians():
     limit = 100
     
     while True:
+        print(f"[{datetime.now()}] Fetching politicians from API: {PARLIAMENT_API_BASE}/politicians/ (limit={limit}, offset={offset})")
         response = requests.get(
             f'{PARLIAMENT_API_BASE}/politicians/',
             params={'limit': limit, 'offset': offset},
@@ -367,6 +368,7 @@ def load_all_politicians():
         )
         response.raise_for_status()
         data = response.json()
+        print(f"[{datetime.now()}] Successfully fetched {len(data['objects'])} politicians from API")
         
         all_politicians.extend(data['objects'])
         
@@ -418,6 +420,7 @@ def load_all_bills():
     limit = 100
     
     while True:
+        print(f"[{datetime.now()}] Fetching bills from API: {PARLIAMENT_API_BASE}/bills/ (limit={limit}, offset={offset})")
         response = requests.get(
             f'{PARLIAMENT_API_BASE}/bills/',
             params={'limit': limit, 'offset': offset},
@@ -425,6 +428,7 @@ def load_all_bills():
         )
         response.raise_for_status()
         data = response.json()
+        print(f"[{datetime.now()}] Successfully fetched {len(data['objects'])} bills from API")
         
         all_bills.extend(data['objects'])
         
@@ -969,15 +973,20 @@ def load_comprehensive_votes():
     
     # Fallback to recent votes API if comprehensive cache fails
     try:
+        api_url = f'{PARLIAMENT_API_BASE}/votes/'
+        params = {'limit': 100, 'offset': 0}
+        print(f"[{datetime.now()}] Fallback: Calling OpenParliament API: {api_url} with params: {params}")
         response = requests.get(
-            f'{PARLIAMENT_API_BASE}/votes/',
-            params={'limit': 100, 'offset': 0},
+            api_url,
+            params=params,
             headers=HEADERS
         )
         response.raise_for_status()
-        return response.json()['objects']
+        data = response.json()
+        print(f"[{datetime.now()}] Successfully fetched {len(data.get('objects', []))} votes from API as fallback")
+        return data['objects']
     except Exception as e:
-        print(f"Error loading votes from API: {e}")
+        print(f"[{datetime.now()}] Error loading votes from API as fallback: {e}")
         return []
 
 def build_mp_votes_from_comprehensive_cache(mp_slug):
@@ -1090,13 +1099,16 @@ def fetch_mp_details_from_api(mp_slug):
     
     try:
         print(f"[{datetime.now()}] Fetching MP details from API for {mp_slug}")
+        api_url = f'{PARLIAMENT_API_BASE}/politicians/{mp_slug}/'
+        print(f"[{datetime.now()}] Calling OpenParliament API: {api_url}")
         response = requests.get(
-            f'{PARLIAMENT_API_BASE}/politicians/{mp_slug}/',
+            api_url,
             headers=HEADERS,
             timeout=10
         )
         response.raise_for_status()
         mp_data = response.json()
+        print(f"[{datetime.now()}] Successfully fetched MP details from API for {mp_data.get('name', mp_slug)}")
         
         # Cache for 1 hour
         cache['mp_details'][mp_slug] = {
@@ -1121,18 +1133,22 @@ def get_mp_voting_records_from_api(mp_slug, limit=20, offset=0):
         print(f"[{datetime.now()}] Fetching votes from API for {mp_slug} (limit: {limit}, offset: {offset})")
         
         # Get ballots for this politician directly from Parliament API
+        api_url = f'{PARLIAMENT_API_BASE}/votes/ballots/'
+        params = {
+            'politician': f'/politicians/{mp_slug}/',
+            'limit': limit,
+            'offset': offset
+        }
+        print(f"[{datetime.now()}] Calling OpenParliament API: {api_url} with params: {params}")
         response = requests.get(
-            f'{PARLIAMENT_API_BASE}/votes/ballots/',
-            params={
-                'politician': f'/politicians/{mp_slug}/',
-                'limit': limit,
-                'offset': offset
-            },
+            api_url,
+            params=params,
             headers=HEADERS,
             timeout=30
         )
         response.raise_for_status()
         ballots_data = response.json()
+        print(f"[{datetime.now()}] Successfully fetched {len(ballots_data.get('objects', []))} ballots from API for {mp_slug}")
         
         # For each ballot, get the vote details (batch process)
         votes_with_ballots = []
@@ -1182,18 +1198,22 @@ def get_mp_voting_records(mp_slug, limit=300):
         limit_per_request = 100  # API seems to limit to 100 per request
         
         while True:
+            api_url = f'{PARLIAMENT_API_BASE}/votes/ballots/'
+            params = {
+                'politician': f'/politicians/{mp_slug}/',
+                'limit': limit_per_request,
+                'offset': offset
+            }
+            print(f"[{datetime.now()}] Calling OpenParliament API: {api_url} with params: {params}")
             response = requests.get(
-                f'{PARLIAMENT_API_BASE}/votes/ballots/',
-                params={
-                    'politician': f'/politicians/{mp_slug}/',
-                    'limit': limit_per_request,
-                    'offset': offset
-                },
+                api_url,
+                params=params,
                 headers=HEADERS,
                 timeout=30
             )
             response.raise_for_status()
             ballots_data = response.json()
+            print(f"[{datetime.now()}] Successfully fetched {len(ballots_data.get('objects', []))} ballots from API (offset: {offset})")
             
             ballots = ballots_data.get('objects', [])
             if not ballots:
@@ -1255,17 +1275,20 @@ def get_mp_voting_records(mp_slug, limit=300):
 def fetch_vote_details(vote_url, ballot):
     """Fetch individual vote details"""
     try:
+        api_url = f"{PARLIAMENT_API_BASE}{vote_url}"
+        print(f"[{datetime.now()}] Calling OpenParliament API: {api_url}")
         vote_response = requests.get(
-            f"{PARLIAMENT_API_BASE}{vote_url}",
+            api_url,
             headers=HEADERS,
             timeout=10
         )
         vote_response.raise_for_status()
         vote_data = vote_response.json()
         vote_data['mp_ballot'] = ballot
+        print(f"[{datetime.now()}] Successfully fetched vote details from API for {vote_url}")
         return vote_data
     except Exception as e:
-        print(f"Error fetching vote details for {vote_url}: {e}")
+        print(f"[{datetime.now()}] Error fetching vote details from API for {vote_url}: {e}")
         return None
 
 def cache_mp_votes_background(mp_slug):
