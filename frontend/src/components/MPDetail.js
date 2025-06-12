@@ -1021,20 +1021,69 @@ function MPDetail() {
         marginBottom: '20px',
         marginTop: '30px'
       }}>
-        <div style={{ display: 'flex', gap: '0' }}>
+        <style>{`
+          .mp-detail-tabs {
+            display: flex;
+            gap: 0;
+            flex-wrap: wrap;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+          }
+          .mp-detail-tabs::-webkit-scrollbar {
+            display: none;
+          }
+          .mp-detail-tab {
+            padding: 12px 24px;
+            border: none;
+            background-color: transparent;
+            cursor: pointer;
+            font-size: 16px;
+            font-family: inherit;
+            white-space: nowrap;
+            flex-shrink: 0;
+            margin-bottom: -2px;
+            transition: all 0.2s ease;
+          }
+          @media (max-width: 768px) {
+            .mp-detail-tabs {
+              gap: 8px;
+              padding: 0 4px;
+            }
+            .mp-detail-tab {
+              padding: 10px 16px;
+              font-size: 14px;
+              min-width: auto;
+            }
+            .mp-detail-tab.sponsored-bills {
+              font-size: 13px;
+              padding: 10px 12px;
+            }
+          }
+          @media (max-width: 480px) {
+            .mp-detail-tabs {
+              gap: 4px;
+              padding: 0 2px;
+            }
+            .mp-detail-tab {
+              padding: 8px 12px;
+              font-size: 13px;
+            }
+            .mp-detail-tab.sponsored-bills {
+              font-size: 12px;
+              padding: 8px 10px;
+            }
+          }
+        `}</style>
+        <div className="mp-detail-tabs">
           <button
             onClick={() => updateActiveTab('votes')}
+            className="mp-detail-tab"
             style={{
-              padding: '12px 24px',
-              border: 'none',
-              backgroundColor: 'transparent',
               color: activeTab === 'votes' ? '#333' : '#666',
-              cursor: 'pointer',
-              fontSize: '16px',
               fontWeight: activeTab === 'votes' ? '600' : 'normal',
-              borderBottom: activeTab === 'votes' ? '2px solid #333' : '2px solid transparent',
-              marginBottom: '-2px',
-              transition: 'all 0.2s ease'
+              borderBottom: activeTab === 'votes' ? '2px solid #333' : '2px solid transparent'
             }}
             onMouseEnter={(e) => {
               if (activeTab !== 'votes') {
@@ -1051,17 +1100,11 @@ function MPDetail() {
           </button>
           <button
             onClick={() => updateActiveTab('statistics')}
+            className="mp-detail-tab"
             style={{
-              padding: '12px 24px',
-              border: 'none',
-              backgroundColor: 'transparent',
               color: activeTab === 'statistics' ? '#333' : '#666',
-              cursor: 'pointer',
-              fontSize: '16px',
               fontWeight: activeTab === 'statistics' ? '600' : 'normal',
-              borderBottom: activeTab === 'statistics' ? '2px solid #333' : '2px solid transparent',
-              marginBottom: '-2px',
-              transition: 'all 0.2s ease'
+              borderBottom: activeTab === 'statistics' ? '2px solid #333' : '2px solid transparent'
             }}
             onMouseEnter={(e) => {
               if (activeTab !== 'statistics') {
@@ -1080,17 +1123,11 @@ function MPDetail() {
           {!billsLoading && sponsoredBills.length > 0 && (
             <button
               onClick={() => updateActiveTab('bills')}
+              className="mp-detail-tab sponsored-bills"
               style={{
-                padding: '12px 24px',
-                border: 'none',
-                backgroundColor: 'transparent',
                 color: activeTab === 'bills' ? '#333' : '#666',
-                cursor: 'pointer',
-                fontSize: '16px',
                 fontWeight: activeTab === 'bills' ? '600' : 'normal',
-                borderBottom: activeTab === 'bills' ? '2px solid #333' : '2px solid transparent',
-                marginBottom: '-2px',
-                transition: 'all 0.2s ease'
+                borderBottom: activeTab === 'bills' ? '2px solid #333' : '2px solid transparent'
               }}
               onMouseEnter={(e) => {
                 if (activeTab !== 'bills') {
@@ -1108,17 +1145,11 @@ function MPDetail() {
           )}
           <button
             onClick={() => updateActiveTab('debates')}
+            className="mp-detail-tab"
             style={{
-              padding: '12px 24px',
-              border: 'none',
-              backgroundColor: 'transparent',
               color: activeTab === 'debates' ? '#333' : '#666',
-              cursor: 'pointer',
-              fontSize: '16px',
               fontWeight: activeTab === 'debates' ? '600' : 'normal',
-              borderBottom: activeTab === 'debates' ? '2px solid #333' : '2px solid transparent',
-              marginBottom: '-2px',
-              transition: 'all 0.2s ease'
+              borderBottom: activeTab === 'debates' ? '2px solid #333' : '2px solid transparent'
             }}
             onMouseEnter={(e) => {
               if (activeTab !== 'debates') {
@@ -1135,17 +1166,11 @@ function MPDetail() {
           </button>
           <button
             onClick={() => updateActiveTab('expenditures')}
+            className="mp-detail-tab"
             style={{
-              padding: '12px 24px',
-              border: 'none',
-              backgroundColor: 'transparent',
               color: activeTab === 'expenditures' ? '#333' : '#666',
-              cursor: 'pointer',
-              fontSize: '16px',
               fontWeight: activeTab === 'expenditures' ? '600' : 'normal',
-              borderBottom: activeTab === 'expenditures' ? '2px solid #333' : '2px solid transparent',
-              marginBottom: '-2px',
-              transition: 'all 0.2s ease'
+              borderBottom: activeTab === 'expenditures' ? '2px solid #333' : '2px solid transparent'
             }}
             onMouseEnter={(e) => {
               if (activeTab !== 'expenditures') {
