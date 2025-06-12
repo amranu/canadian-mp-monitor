@@ -37,7 +37,7 @@ class MPExpendituresScraper:
         self.base_url = "https://www.ourcommons.ca"
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'MP-Monitor-Expenditures/1.0 (Educational Research)',
+            'User-Agent': 'MP-Monitor-Expenditures/1.0 (amranu@gmail.com)',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-CA,en;q=0.8',
             'Accept-Encoding': 'gzip, deflate',

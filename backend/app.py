@@ -15,7 +15,7 @@ CORS(app)
 PARLIAMENT_API_BASE = 'https://api.openparliament.ca'
 HEADERS = {
     'Accept': 'application/json',
-    'User-Agent': 'MP-Monitor-App/1.0 (contact@example.com)',
+    'User-Agent': 'MP-Tracker/1.0 (amranu@gmail.com)',
     'API-Version': 'v1'
 }
 

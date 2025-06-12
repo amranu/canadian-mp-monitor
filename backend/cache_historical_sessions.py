@@ -32,7 +32,7 @@ import threading
 PARLIAMENT_API_BASE = 'https://api.openparliament.ca'
 HEADERS = {
     'Accept': 'application/json',
-    'User-Agent': 'MP-Monitor-Historical-Cache/1.0 (contact@mptracker.ca)',
+    'User-Agent': 'MP-Monitor-Historical-Cache/1.0 (amranu@gmail.com)',
     'API-Version': 'v1'
 }
 

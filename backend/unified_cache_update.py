@@ -38,7 +38,7 @@ from pathlib import Path
 PARLIAMENT_API_BASE = 'https://api.openparliament.ca'
 HEADERS = {
     'Accept': 'application/json',
-    'User-Agent': 'MP-Monitor-Unified-Cache/2.0 (contact@mptracker.ca)',
+    'User-Agent': 'MP-Monitor-Unified-Cache/2.0 (amranu@gmail.com)',
     'API-Version': 'v1'
 }
 
