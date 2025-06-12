@@ -441,17 +441,28 @@ class UnifiedCacheUpdater:
                 if success:
                     self.logger.info("Successfully processed new votes incrementally")
                     
-                    # Only expire party line stats (they need recalculation with new votes)
-                    party_line_cache = os.path.join(CACHE_DIR, 'party_line_stats.json')
-                    if os.path.exists(party_line_cache):
-                        self._expire_cache_file(party_line_cache)
-                        self.logger.info("Expired party line stats cache for recalculation")
+                    # Immediately update party line stats with new votes
+                    self.logger.info("Updating party-line stats with new votes...")
+                    party_line_success = self.update_party_line_stats_force()
+                    if party_line_success:
+                        self.logger.info("Party-line stats updated successfully with new votes")
+                    else:
+                        self.logger.warning("Failed to update party-line stats with new votes")
                     
                     return True
                 else:
                     self.logger.warning("Incremental processing failed, falling back to full cache expiration")
                     # Fallback to old behavior if incremental processing fails
-                    return self._expire_all_vote_caches(new_vote_ids)
+                    fallback_success = self._expire_all_vote_caches(new_vote_ids)
+                    if fallback_success:
+                        # Also try to update party-line stats immediately in fallback case
+                        self.logger.info("Attempting party-line stats update after fallback...")
+                        party_line_success = self.update_party_line_stats_force()
+                        if party_line_success:
+                            self.logger.info("Party-line stats updated successfully after fallback")
+                        else:
+                            self.logger.warning("Failed to update party-line stats after fallback")
+                    return fallback_success
             else:
                 self.logger.info(f"No new votes found. API has {len(api_vote_data)} votes, all present in cache")
                 
@@ -1691,6 +1702,39 @@ class UnifiedCacheUpdater:
         except Exception as e:
             self.log_operation("Party-Line Stats", "FAILED", f"Error: {e}")
             self.logger.error(f"Party-line stats update error: {e}")
+            return False
+    
+    def update_party_line_stats_force(self) -> bool:
+        """Force update party-line voting statistics regardless of cache expiration"""
+        self.log_operation("Party-Line Stats (Forced)", "STARTED")
+        
+        try:
+            # Import and call the party-line update function
+            import cache_party_line_stats
+            
+            # Force recalculation regardless of cache status
+            self.logger.info("Force calculating party-line statistics with new votes...")
+            stats_data = cache_party_line_stats.calculate_all_party_line_stats(
+                max_votes_per_mp=5000, 
+                force_recalculate=True
+            )
+            
+            if stats_data:
+                success = cache_party_line_stats.save_party_line_cache(stats_data)
+                if success:
+                    mp_count = stats_data['summary']['total_mps_analyzed']
+                    self.log_operation("Party-Line Stats (Forced)", "COMPLETED", f"{mp_count} MPs analyzed")
+                    return True
+                else:
+                    self.log_operation("Party-Line Stats (Forced)", "FAILED", "Could not save cache")
+                    return False
+            else:
+                self.log_operation("Party-Line Stats (Forced)", "FAILED", "No data calculated")
+                return False
+                
+        except Exception as e:
+            self.log_operation("Party-Line Stats (Forced)", "FAILED", f"Error: {e}")
+            self.logger.error(f"Forced party-line stats update error: {e}")
             return False
     
     def save_statistics(self):
