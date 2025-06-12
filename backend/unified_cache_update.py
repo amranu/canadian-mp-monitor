@@ -206,9 +206,15 @@ class UnifiedCacheUpdater:
                 data = json.load(f)
             
             expires = data.get('expires', 0)
-            # Ensure expires is a number (handle string timestamps)
+            # Ensure expires is a number (handle different timestamp formats)
             if isinstance(expires, str):
-                expires = float(expires)
+                try:
+                    # Try parsing as ISO timestamp first
+                    from datetime import datetime
+                    expires = datetime.fromisoformat(expires.replace('Z', '+00:00')).timestamp()
+                except ValueError:
+                    # Fall back to float conversion
+                    expires = float(expires)
             return time.time() > expires
             
         except (json.JSONDecodeError, KeyError, UnicodeDecodeError):
