@@ -43,7 +43,7 @@ HEADERS = {
 }
 
 # Cache configuration
-CACHE_DIR = 'cache'
+CACHE_DIR = '/home/root/mp-monitor/backend/cache'
 CACHE_DURATIONS = {
     'politicians': 172800,    # 48 hours - MPs don't change often
     'votes': 172800,         # 48 hours - votes happen frequently but cache longer
@@ -376,9 +376,9 @@ class UnifiedCacheUpdater:
         self.logger.info("Checking for new votes to determine if incremental updates are needed...")
         
         try:
-            # Get most recent votes from API (get more than 1 to be safe)
+            # Get more recent votes from API to catch any new votes
             data = self.api_request(f'{PARLIAMENT_API_BASE}/votes/', {
-                'limit': 10, 'offset': 0  # Check more votes to be thorough
+                'limit': 50, 'offset': 0, 'order_by': '-date'  # Check more votes to be thorough
             })
             
             if not data or not data.get('objects'):
@@ -432,8 +432,30 @@ class UnifiedCacheUpdater:
             # Check if there are any new vote IDs in API that aren't in cache
             new_vote_ids = set(api_vote_data.keys()) - cached_vote_ids
             
+            # Also check for newer votes by date if we have cached data
+            if not new_vote_ids and cached_votes and api_votes:
+                # Get the most recent cached vote date
+                try:
+                    cached_dates = []
+                    for vote in cached_votes[:10]:  # Check recent cached votes
+                        if isinstance(vote, dict) and vote.get('date'):
+                            cached_dates.append(vote['date'])
+                    
+                    if cached_dates:
+                        most_recent_cached = max(cached_dates)
+                        self.logger.info(f"Most recent cached vote date: {most_recent_cached}")
+                        
+                        # Check if API has votes newer than our most recent cached vote
+                        for vote_id, vote_data in api_vote_data.items():
+                            vote_date = vote_data.get('date', '')
+                            if vote_date and vote_date > most_recent_cached:
+                                self.logger.info(f"Found newer vote by date: {vote_id} ({vote_date} > {most_recent_cached})")
+                                new_vote_ids.add(vote_id)
+                except Exception as e:
+                    self.logger.warning(f"Error in date-based new vote detection: {e}")
+            
             if new_vote_ids:
-                self.logger.info(f"New votes detected! Found {len(new_vote_ids)} new vote(s): {', '.join(new_vote_ids)}")
+                self.logger.info(f"New votes detected! Found {len(new_vote_ids)} new vote(s): {', '.join(sorted(new_vote_ids))}")
                 
                 # Process new votes incrementally instead of expiring all caches
                 success = self._process_new_votes_incrementally(new_vote_ids, api_vote_data)
@@ -729,7 +751,7 @@ class UnifiedCacheUpdater:
             return True
             
         data = self.api_request(f'{PARLIAMENT_API_BASE}/votes/', {
-            'limit': 100, 'offset': 0
+            'limit': 100, 'offset': 0, 'order_by': '-date'
         })
         
         if data and data.get('objects'):
@@ -1904,6 +1926,47 @@ class UnifiedCacheUpdater:
         self.update_mp_debates_cache(max_mps=max_mps)
         
         self.save_statistics()
+    
+    def restart_backend_container(self):
+        """Restart the backend Docker container to reload cached data"""
+        try:
+            import subprocess
+            
+            # Check if we're running in a Docker environment
+            if os.path.exists('/.dockerenv'):
+                self.logger.info("Running inside Docker container, skipping backend restart")
+                return True
+            
+            # Check if docker-compose.yml exists in parent directory
+            compose_file = '/home/root/mp-monitor/docker-compose.yml'
+            if not os.path.exists(compose_file):
+                self.logger.warning(f"Docker compose file not found at {compose_file}, skipping backend restart")
+                return False
+            
+            self.logger.info("Restarting backend container to reload cache...")
+            
+            # Run docker compose restart backend
+            result = subprocess.run(
+                ['docker', 'compose', '-f', compose_file, 'restart', 'backend'],
+                cwd='/home/root/mp-monitor',
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
+            
+            if result.returncode == 0:
+                self.logger.info("Backend container restarted successfully")
+                return True
+            else:
+                self.logger.warning(f"Failed to restart backend container: {result.stderr}")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            self.logger.warning("Backend container restart timed out")
+            return False
+        except Exception as e:
+            self.logger.warning(f"Error restarting backend container: {e}")
+            return False
 
 def main():
     parser = argparse.ArgumentParser(description='Unified Cache Update Script')
@@ -1951,6 +2014,9 @@ def main():
             updater.run_debates_mode()
         elif args.mode == 'mp-debates':
             updater.run_mp_debates_mode(max_mps=args.max_mps)
+        
+        # Restart backend container after successful cache update
+        updater.restart_backend_container()
             
     except KeyboardInterrupt:
         updater.logger.info("Cache update interrupted by user")
