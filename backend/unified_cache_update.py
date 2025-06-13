@@ -101,15 +101,29 @@ class UnifiedCacheUpdater:
         }
         
         # Setup logging
-        logging.basicConfig(
-            level=getattr(logging, log_level),
-            format='[%(asctime)s] %(levelname)s: %(message)s',
-            handlers=[
-                logging.FileHandler(os.path.join(CACHE_DIR, 'unified_cache.log')),
-                logging.StreamHandler()
-            ]
-        )
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger('unified_cache_updater')
+        
+        # Clear any existing handlers to prevent duplicates
+        self.logger.handlers.clear()
+        
+        # Set log level
+        self.logger.setLevel(getattr(logging, log_level))
+        
+        # Create formatter
+        formatter = logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s')
+        
+        # Add file handler
+        file_handler = logging.FileHandler(os.path.join(CACHE_DIR, 'unified_cache.log'))
+        file_handler.setFormatter(formatter)
+        self.logger.addHandler(file_handler)
+        
+        # Add console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
+        
+        # Prevent propagation to root logger to avoid duplicates
+        self.logger.propagate = False
         
         self.ensure_cache_dirs()
         self.acquire_lock()
