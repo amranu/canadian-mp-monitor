@@ -934,6 +934,54 @@ class UnifiedCacheUpdater:
         self.log_operation("Bills Cache", "FAILED", "No data retrieved")
         return False
     
+    def update_bills_sponsor_enrichment(self) -> bool:
+        """Update existing bills cache with sponsor enrichment (independent of cache expiration)"""
+        self.log_operation("Bills Sponsor Enrichment", "STARTED")
+        
+        # Check if bills cache exists
+        if not os.path.exists(BILLS_CACHE_FILE):
+            self.log_operation("Bills Sponsor Enrichment", "SKIPPED", "No bills cache found")
+            return True
+        
+        try:
+            # Load existing bills cache
+            with open(BILLS_CACHE_FILE, 'r') as f:
+                cache_data = json.load(f)
+            
+            bills = cache_data.get('data', [])
+            if not bills:
+                self.log_operation("Bills Sponsor Enrichment", "SKIPPED", "No bills in cache")
+                return True
+            
+            # Check if enrichment is needed (look for bills without sponsor info)
+            bills_without_sponsors = [b for b in bills if not b.get('sponsor_politician_url')]
+            if not bills_without_sponsors:
+                self.log_operation("Bills Sponsor Enrichment", "SKIPPED", "All bills already enriched")
+                return True
+            
+            # Enrich bills with sponsor information
+            enriched_bills = self._enrich_bills_with_sponsors(bills)
+            
+            # Update cache with enriched data
+            cache_data['data'] = enriched_bills
+            success = self.save_cache_data(enriched_bills, BILLS_CACHE_FILE, 'bills')
+            
+            if success:
+                self._build_bills_with_votes_index()
+                sponsor_count = len([bill for bill in enriched_bills if bill.get('sponsor_politician_url')])
+                enriched_count = len([bill for bill in enriched_bills if bill.get('sponsor_politician_url')]) - len([bill for bill in bills if bill.get('sponsor_politician_url')])
+                self.log_operation("Bills Sponsor Enrichment", "COMPLETED", 
+                                 f"Added {enriched_count} sponsors, total {sponsor_count} bills with sponsors")
+            else:
+                self.log_operation("Bills Sponsor Enrichment", "FAILED", "Could not save enriched bills")
+            
+            return success
+            
+        except Exception as e:
+            self.logger.error(f"Error in bills sponsor enrichment: {e}")
+            self.log_operation("Bills Sponsor Enrichment", "FAILED", str(e))
+            return False
+    
     def _enrich_bills_with_sponsors(self, bills: List[dict]) -> List[dict]:
         """Enrich bills with sponsor information from LEGISinfo"""
         try:
@@ -1820,6 +1868,8 @@ class UnifiedCacheUpdater:
         self.update_votes_cache()
         self.update_vote_details_incremental()
         self.update_bills_cache()
+        # Always run sponsor enrichment after bills cache (even if bills cache was skipped)
+        self.update_bills_sponsor_enrichment()
         self.update_mp_voting_records(max_mps=max_mps)
         self.update_historical_mps()
         self.update_debates_cache()
@@ -1834,6 +1884,8 @@ class UnifiedCacheUpdater:
         self.logger.info("Starting unified cache update (INCREMENTAL mode)")
         
         self.update_vote_details_incremental()
+        # Always check for sponsor enrichment in incremental mode too
+        self.update_bills_sponsor_enrichment()
         # In incremental mode, only update fresh MP records if cache is expired
         # This will still process all MPs, but only those with expired cache
         self.update_mp_voting_records(max_mps=max_mps)
