@@ -1044,8 +1044,8 @@ def build_mp_votes_from_comprehensive_cache(mp_slug):
                 print(f"Error processing vote {vote_id} for {mp_slug}: {e}")
                 continue
         
-        # Sort by date descending
-        mp_votes.sort(key=lambda x: x.get('date', ''), reverse=True)
+        # Sort by vote number descending (most recent votes first)
+        mp_votes.sort(key=lambda x: int(x.get('number', 0) or 0), reverse=True)
         
         print(f"[{datetime.now()}] Built {len(mp_votes)} votes for {mp_slug} from comprehensive cache")
         return mp_votes

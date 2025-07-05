@@ -886,13 +886,27 @@ class UnifiedCacheUpdater:
             return False
     
     def update_bills_cache(self) -> bool:
-        """Update bills cache with all parliamentary bills"""
+        """Update bills cache with all parliamentary bills, preserving existing sponsor data"""
         self.log_operation("Bills Cache", "STARTED")
         
         if not self.is_cache_expired(BILLS_CACHE_FILE, 'bills'):
             self.log_operation("Bills Cache", "SKIPPED", "Cache still fresh")
             return True
-            
+        
+        # Load existing bills cache to preserve sponsor data
+        existing_bills = {}
+        if os.path.exists(BILLS_CACHE_FILE):
+            try:
+                with open(BILLS_CACHE_FILE, 'r') as f:
+                    cache_data = json.load(f)
+                for bill in cache_data.get('data', []):
+                    if bill.get('url'):
+                        existing_bills[bill['url']] = bill
+                self.logger.info(f"Loaded {len(existing_bills)} existing bills from cache")
+            except Exception as e:
+                self.logger.warning(f"Could not load existing bills cache: {e}")
+        
+        # Fetch fresh bills from API
         all_bills = []
         offset = 0
         limit = 100
@@ -919,8 +933,26 @@ class UnifiedCacheUpdater:
                 break
         
         if all_bills:
-            # Enrich bills with sponsor information
-            enriched_bills = self._enrich_bills_with_sponsors(all_bills)
+            # Merge fresh API data with existing sponsor data
+            merged_bills = []
+            preserved_sponsors = 0
+            
+            for bill in all_bills:
+                bill_url = bill.get('url')
+                if bill_url and bill_url in existing_bills:
+                    existing_bill = existing_bills[bill_url]
+                    # Preserve sponsor data if it exists
+                    if existing_bill.get('sponsor_politician_url'):
+                        bill['sponsor_politician_url'] = existing_bill['sponsor_politician_url']
+                        if existing_bill.get('sponsor_name'):
+                            bill['sponsor_name'] = existing_bill['sponsor_name']
+                        preserved_sponsors += 1
+                merged_bills.append(bill)
+            
+            self.logger.info(f"Preserved sponsor data for {preserved_sponsors} bills")
+            
+            # Enrich bills with sponsor information (will skip bills that already have sponsors)
+            enriched_bills = self._enrich_bills_with_sponsors(merged_bills)
             
             success = self.save_cache_data(enriched_bills, BILLS_CACHE_FILE, 'bills')
             if success:
@@ -1019,6 +1051,11 @@ class UnifiedCacheUpdater:
                 
                 # Only enrich bills from target sessions to save time
                 if bill.get('session') not in target_sessions:
+                    enriched_bills.append(enriched_bill)
+                    continue
+                
+                # Skip bills that already have sponsor data
+                if bill.get('sponsor_politician_url'):
                     enriched_bills.append(enriched_bill)
                     continue
                 
@@ -1257,8 +1294,8 @@ class UnifiedCacheUpdater:
                 except Exception as e:
                     continue
         
-        # Sort by date descending
-        votes_with_ballots.sort(key=lambda x: x.get('date', ''), reverse=True)
+        # Sort by vote number descending (most recent votes first)
+        votes_with_ballots.sort(key=lambda x: int(x.get('number', 0) or 0), reverse=True)
         
         return votes_with_ballots[:5000]  # Limit to most recent 5000 votes
     
