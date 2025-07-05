@@ -122,11 +122,30 @@ function MPDetail() {
     }
   }, [selectedSession, mp]);
 
-  // Filter votes by selected session
+  // Filter votes by selected session and sort by most recent first
   const getFilteredVotes = () => {
     if (!votes || votes.length === 0) return [];
-    if (selectedSession === 'all') return votes;
-    return votes.filter(vote => vote.session === selectedSession);
+    
+    let filteredVotes;
+    if (selectedSession === 'all') {
+      filteredVotes = [...votes];
+    } else {
+      filteredVotes = votes.filter(vote => vote.session === selectedSession);
+    }
+    
+    // Sort by session descending, then by vote number descending (most recent votes first)
+    return filteredVotes.sort((a, b) => {
+      // First sort by session (descending - newer sessions first)
+      const sessionComparison = (b.session || '').localeCompare(a.session || '');
+      if (sessionComparison !== 0) {
+        return sessionComparison;
+      }
+      
+      // Then sort by vote number (descending - higher numbers first)
+      const aNumber = parseInt(a.number || 0);
+      const bNumber = parseInt(b.number || 0);
+      return bNumber - aNumber;
+    });
   };
 
   // Get session-specific party-line statistics
