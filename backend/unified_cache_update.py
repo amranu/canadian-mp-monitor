@@ -1294,8 +1294,8 @@ class UnifiedCacheUpdater:
                 except Exception as e:
                     continue
         
-        # Sort by vote number descending (most recent votes first)
-        votes_with_ballots.sort(key=lambda x: int(x.get('number', 0) or 0), reverse=True)
+        # Sort by session descending, then vote number descending (most recent votes first)
+        votes_with_ballots.sort(key=lambda x: (x.get('session', ''), int(x.get('number', 0) or 0)), reverse=True)
         
         return votes_with_ballots[:5000]  # Limit to most recent 5000 votes
     
